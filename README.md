@@ -1,0 +1,1 @@
+# -go118-fuzz-build
