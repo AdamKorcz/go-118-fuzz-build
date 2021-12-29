@@ -154,12 +154,10 @@ var mainTmpl = template.Must(template.New("main").Parse(`
 // +build ignore
 package main
 import (
-	//"reflect"
 	"testing"
 	"unsafe"
 	target {{printf "%q" .PkgPath}}
 	"github.com/AdamKorcz/go-118-fuzz-build/utils"
-	//fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 // #include <stdint.h>
 import "C"
@@ -171,35 +169,6 @@ func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
 	LibFuzzer{{.Func}}(s)
 	return 0
 }
-
-type F struct {
-	Data []byte
-	T *testing.T
-}
-func (f *F) Add(args ...any) {}
-func (c *F) Cleanup(f func()) {}
-func (c *F) Error(args ...any) {}
-func (c *F) Errorf(format string, args ...any) {}
-func (f *F) Fail() {}
-func (c *F) FailNow() {}
-func (c *F) Failed() bool {return false}
-func (c *F) Fatal(args ...any) {}
-func (c *F) Fatalf(format string, args ...any) {}
-func (f *F) Fuzz(ff any) {
-	/*fuzzConsumer := fuzz.NewConsumer(f.Data)
-	{{.Declarations}}*/
-	//ff(f.T, {{.FuzzerParams}})
-}
-func (f *F) Helper() {}
-func (c *F) Log(args ...any) {}
-func (c *F) Logf(format string, args ...any) {}
-func (c *F) Name() string {return "name"}
-func (c *F) Setenv(key, value string) {}
-func (c *F) Skip(args ...any) {}
-func (c *F) SkipNow() {}
-func (c *F) Skipf(format string, args ...any) {}
-func (f *F) Skipped() bool {return false}
-func (c *F) TempDir() string {return "/tmp"}
 
 func LibFuzzer{{.Func}}(data []byte) int {
 	fuzzer := &utils.F{Data:data, T:&testing.T{}}

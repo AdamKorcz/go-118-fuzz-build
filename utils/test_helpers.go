@@ -1,9 +1,10 @@
 package utils
 
 import (
-	"fmt"
+	//"fmt"
 	"reflect"
 	"testing"
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 
 type F struct {
@@ -21,20 +22,40 @@ func (c *F) Failed() bool {return false}
 func (c *F) Fatal(args ...any) {}
 func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
+	// we are assuming that ff is a func.
+	// TODO: Add a check for UX purposes
+	
 	fn := reflect.ValueOf(ff)
 	fnType := fn.Type()
 	var types []reflect.Type
 	for i := 1; i < fnType.NumIn(); i++ {
 		t := fnType.In(i)
+
 		types = append(types, t)
 	}
 	args := []reflect.Value{reflect.ValueOf(f.T)}
+	fuzzConsumer := fuzz.NewConsumer(f.Data)
 	for _, v := range types {
-		fmt.Println(v.Kind())
-		args = append(args, reflect.ValueOf(v))
+		switch v.String() {
+		case "[]uint8":
+			b, err := fuzzConsumer.GetBytes()
+			if err != nil {
+				return
+			}
+			newBytes := reflect.New(v)
+			newBytes.Elem().SetBytes(b)
+			args = append(args, newBytes.Elem())
+		case "string":
+			s, err := fuzzConsumer.GetString()
+			if err != nil {
+				return
+			}
+			newString := reflect.New(v)
+			newString.Elem().SetString(s)
+			args = append(args, newString.Elem())
+		}
 	}
-	fmt.Println(args)
-	//ff(f.T, params)
+	fn.Call(args)
 }
 func (f *F) Helper() {}
 func (c *F) Log(args ...any) {}
