@@ -7,7 +7,7 @@ import (
 )
 
 func FuzzFoo(f *utils.F) {
-	f.Fuzz(func(t *testing.T, data []byte) {
+	f.Fuzz(func(t *testing.T, data, data2 []byte, data3 string) {
 		_, _ = sqlparser.Parse(string(data))
 	})
 }

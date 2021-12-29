@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	//"fmt"
 	"go/token"
 	"io/ioutil"
 	"log"
@@ -11,11 +12,13 @@ import (
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
+	//"github.com/AdamKorcz/go-118-fuzz-build/utils"
 )
 
 var (
 	flagFunc = flag.String("func", "Fuzz", "fuzzer entry point")
 	flagO    = flag.String("o", "", "output file")
+	flagPath = flag.String("abs_path", "", "absolute path to fuzzer")
 
 	flagRace = flag.Bool("race", false, "enable data race detection")
 	flagTags = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
@@ -96,18 +99,30 @@ func main() {
 	}
 	defer os.Remove(mainFile.Name())
 
+	/*paramDeclarations := utils.GetParamDeclarations(*flagPath)
+	fmt.Println(paramDeclarations)
+
+	params := utils.GetParams(*flagPath)
+	fmt.Println(params)*/
+
 	type Data struct {
 		PkgPath string
 		Func    string
+		Declarations string
+		FuzzerParams string
 	}
-	/*err = mainTmpl.Execute(os.Stdout, &Data{
+	err = mainTmpl.Execute(os.Stdout, &Data{
 		PkgPath: importPath,
 		Func:    *flagFunc,
+		/*Declarations: paramDeclarations,
+		FuzzerParams: params,*/
 	})
-	return*/
+	//return
 	err = mainTmpl.Execute(mainFile, &Data{
 		PkgPath: importPath,
 		Func:    *flagFunc,
+		/*Declarations: paramDeclarations,
+		FuzzerParams: params,*/
 	})
 	if err != nil {
 		log.Fatal("failed to execute template:", err)
@@ -125,7 +140,7 @@ func main() {
 	args = append(args, buildFlags...)
 	args = append(args, mainFile.Name())
 	//cmd := exec.Command("go", args...)
-	cmd := exec.Command("gotip", args...)
+	cmd := exec.Command("/home/adam/go/bin/gotip", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -139,10 +154,12 @@ var mainTmpl = template.Must(template.New("main").Parse(`
 // +build ignore
 package main
 import (
+	//"reflect"
 	"testing"
 	"unsafe"
 	target {{printf "%q" .PkgPath}}
 	"github.com/AdamKorcz/go-118-fuzz-build/utils"
+	//fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 // #include <stdint.h>
 import "C"
@@ -154,6 +171,35 @@ func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
 	LibFuzzer{{.Func}}(s)
 	return 0
 }
+
+type F struct {
+	Data []byte
+	T *testing.T
+}
+func (f *F) Add(args ...any) {}
+func (c *F) Cleanup(f func()) {}
+func (c *F) Error(args ...any) {}
+func (c *F) Errorf(format string, args ...any) {}
+func (f *F) Fail() {}
+func (c *F) FailNow() {}
+func (c *F) Failed() bool {return false}
+func (c *F) Fatal(args ...any) {}
+func (c *F) Fatalf(format string, args ...any) {}
+func (f *F) Fuzz(ff any) {
+	/*fuzzConsumer := fuzz.NewConsumer(f.Data)
+	{{.Declarations}}*/
+	//ff(f.T, {{.FuzzerParams}})
+}
+func (f *F) Helper() {}
+func (c *F) Log(args ...any) {}
+func (c *F) Logf(format string, args ...any) {}
+func (c *F) Name() string {return "name"}
+func (c *F) Setenv(key, value string) {}
+func (c *F) Skip(args ...any) {}
+func (c *F) SkipNow() {}
+func (c *F) Skipf(format string, args ...any) {}
+func (f *F) Skipped() bool {return false}
+func (c *F) TempDir() string {return "/tmp"}
 
 func LibFuzzer{{.Func}}(data []byte) int {
 	fuzzer := &utils.F{Data:data, T:&testing.T{}}
