@@ -1,7 +1,7 @@
 package utils
 
 import (
-	//"fmt"
+	"fmt"
 	"reflect"
 	"testing"
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
@@ -24,7 +24,7 @@ func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
 	// we are assuming that ff is a func.
 	// TODO: Add a check for UX purposes
-	
+
 	fn := reflect.ValueOf(ff)
 	fnType := fn.Type()
 	var types []reflect.Type
@@ -53,6 +53,24 @@ func (f *F) Fuzz(ff any) {
 			newString := reflect.New(v)
 			newString.Elem().SetString(s)
 			args = append(args, newString.Elem())
+		case "int", "int8", "int16", "int32", "int64":
+			randInt, err := fuzzConsumer.GetInt()
+			if err != nil {
+				return
+			}
+			newInt := reflect.New(v)
+			newInt.Elem().SetInt(int64(randInt))
+			args = append(args, newInt.Elem())
+		case "uint", "uint8", "uint16", "uint32", "uint64":
+			randInt, err := fuzzConsumer.GetInt()
+			if err != nil {
+				return
+			}
+			newUint := reflect.New(v)
+			newUint.Elem().SetUint(uint64(randInt))
+			args = append(args, newUint.Elem())
+		default: 
+			fmt.Println(v.String())
 		}
 	}
 	fn.Call(args)
