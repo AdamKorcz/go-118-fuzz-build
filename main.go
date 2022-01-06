@@ -103,10 +103,10 @@ func main() {
 		Declarations string
 		FuzzerParams string
 	}
-	err = mainTmpl.Execute(os.Stdout, &Data{
+	/*err = mainTmpl.Execute(os.Stdout, &Data{
 		PkgPath: importPath,
 		Func:    *flagFunc,
-	})
+	})*/
 	//return
 	err = mainTmpl.Execute(mainFile, &Data{
 		PkgPath: importPath,
