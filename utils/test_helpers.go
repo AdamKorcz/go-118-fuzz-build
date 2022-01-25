@@ -59,7 +59,7 @@ func (f *F) Fuzz(ff any) {
 				return
 			}
 			newInt := reflect.New(v)
-			newInt.Elem().SetInt(randInt)
+			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
 		case "int8":
 			randInt, err := fuzzConsumer.GetInt()
@@ -107,23 +107,23 @@ func (f *F) Fuzz(ff any) {
 				return
 			}
 			newUint := reflect.New(v)
-			newUint.Elem().SetUint(uint8(randInt))
+			newUint.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint.Elem())
 		case "uint16":
-			randInt, err := fuzzConsumer.GetUin16()
+			randInt, err := fuzzConsumer.GetUint16()
 			if err != nil {
 				return
 			}
 			newUint16 := reflect.New(v)
-			newUint16.Elem().SetUint(randInt)
+			newUint16.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint16.Elem())
 		case "uint32":
-			randInt, err := fuzzConsumer.GetUin32()
+			randInt, err := fuzzConsumer.GetUint32()
 			if err != nil {
 				return
 			}
 			newUint32 := reflect.New(v)
-			newUint32.Elem().SetUint(randInt)
+			newUint32.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint32.Elem())
 		case "uint64":
 			randInt, err := fuzzConsumer.GetUint64()
