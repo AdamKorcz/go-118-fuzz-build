@@ -133,6 +133,14 @@ func (f *F) Fuzz(ff any) {
 			newUint64 := reflect.New(v)
 			newUint64.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint64.Elem())
+		case "rune":
+			randInt, err := fuzzConsumer.GetRune()
+			if err != nil {
+				return
+			}
+			newUint64 := reflect.New(v)
+			newUint64.Elem().SetUint(uint64(randInt))
+			args = append(args, newUint64.Elem())
 		default: 
 			fmt.Println(v.String())
 		}
