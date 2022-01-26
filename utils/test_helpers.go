@@ -2,24 +2,25 @@ package utils
 
 import (
 	"fmt"
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"reflect"
 	"testing"
-	fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 
 type F struct {
-	Data []byte
-	T *testing.T
+	Data     []byte
+	T        *testing.T
 	FuzzFunc func(*testing.T, any)
 }
-func (f *F) Add(args ...any) {}
-func (c *F) Cleanup(f func()) {}
-func (c *F) Error(args ...any) {}
+
+func (f *F) Add(args ...any)                   {}
+func (c *F) Cleanup(f func())                  {}
+func (c *F) Error(args ...any)                 {}
 func (c *F) Errorf(format string, args ...any) {}
-func (f *F) Fail() {}
-func (c *F) FailNow() {}
-func (c *F) Failed() bool {return false}
-func (c *F) Fatal(args ...any) {}
+func (f *F) Fail()                             {}
+func (c *F) FailNow()                          {}
+func (c *F) Failed() bool                      { return false }
+func (c *F) Fatal(args ...any)                 {}
 func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
 	// we are assuming that ff is a func.
@@ -141,19 +142,19 @@ func (f *F) Fuzz(ff any) {
 			newRune := reflect.New(v)
 			newRune.Elem().Set(reflect.ValueOf(randRune))
 			args = append(args, newRune.Elem())
-		default: 
+		default:
 			fmt.Println(v.String())
 		}
 	}
 	fn.Call(args)
 }
-func (f *F) Helper() {}
-func (c *F) Log(args ...any) {}
-func (c *F) Logf(format string, args ...any) {}
-func (c *F) Name() string {return "name"}
-func (c *F) Setenv(key, value string) {}
-func (c *F) Skip(args ...any) {}
-func (c *F) SkipNow() {}
+func (f *F) Helper()                          {}
+func (c *F) Log(args ...any)                  {}
+func (c *F) Logf(format string, args ...any)  {}
+func (c *F) Name() string                     { return "name" }
+func (c *F) Setenv(key, value string)         {}
+func (c *F) Skip(args ...any)                 {}
+func (c *F) SkipNow()                         {}
 func (c *F) Skipf(format string, args ...any) {}
-func (f *F) Skipped() bool {return false}
-func (c *F) TempDir() string {return "/tmp"}
+func (f *F) Skipped() bool                    { return false }
+func (c *F) TempDir() string                  { return "/tmp" }
