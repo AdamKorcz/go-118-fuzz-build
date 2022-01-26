@@ -9,8 +9,8 @@ import (
 
 func fuzzRune(f *F) {
 	f.Fuzz(func(t *testing.T, input rune) {
-		if reflect.TypeOf(input).String() != "string" {
-			t.Fatalf("input is not string but should be")
+		if reflect.TypeOf(input).String() != "int32" {
+			t.Fatalf("input is not int but should be")
 		}
 		if string(input) != "A" {
 			t.Fatalf("Should be A")
