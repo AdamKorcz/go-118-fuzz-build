@@ -99,6 +99,42 @@ func fuzzFourArgs(f *F) {
 	})
 }
 
+func fuzzFloat32(f *F) {
+	f.Fuzz(func(t *testing.T, input float32) {
+		if reflect.TypeOf(input).String() != "float32" {
+			t.Fatalf("input is not float32 but should be")
+		}
+		expectedFloat32 := float32(194.25395)
+		if input != expectedFloat32 {
+			t.Errorf("'newFloat' should be '%f', but is %f\n", expectedFloat32, input)
+		}
+	})
+}
+
+func fuzzFloat64(f *F) {
+	f.Fuzz(func(t *testing.T, input float64) {
+		if reflect.TypeOf(input).String() != "float64" {
+			t.Fatalf("input is not float64 but should be")
+		}
+		expectedFloat64 := 2.3127085096212183e+35
+		if input != expectedFloat64 {
+			t.Errorf("'newFloat' should be '%f', but is %f\n", expectedFloat64, input)
+		}
+	})
+}
+
+func TestFuzzFloat32(t *testing.T) {
+	data := []byte{0x3, 0x41, 0x42, 0x43, 0x44}
+	f := &F{Data: data, T: t}
+	fuzzFloat32(f)
+}
+
+func TestFuzzFloat64(t *testing.T) {
+	data := []byte{0x3, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48}
+	f := &F{Data: data, T: t}
+	fuzzFloat64(f)
+}
+
 func TestFuzzRune(t *testing.T) {
 	data := []byte{0x41, 0x42, 0x43}
 	f := &F{Data: data, T: t}

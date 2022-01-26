@@ -142,6 +142,22 @@ func (f *F) Fuzz(ff any) {
 			newRune := reflect.New(v)
 			newRune.Elem().Set(reflect.ValueOf(randRune))
 			args = append(args, newRune.Elem())
+		case "float32":
+			randFloat, err := fuzzConsumer.GetFloat32()
+			if err != nil {
+				return
+			}
+			newFloat := reflect.New(v)
+			newFloat.Elem().Set(reflect.ValueOf(randFloat))
+			args = append(args, newFloat.Elem())
+		case "float64":
+			randFloat, err := fuzzConsumer.GetFloat64()
+			if err != nil {
+				return
+			}
+			newFloat := reflect.New(v)
+			newFloat.Elem().Set(reflect.ValueOf(randFloat))
+			args = append(args, newFloat.Elem())
 		default:
 			fmt.Println(v.String())
 		}
