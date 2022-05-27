@@ -127,9 +127,8 @@ func main() {
 	args := []string{"build", "-o", out}
 	args = append(args, buildFlags...)
 	args = append(args, mainFile.Name())
-	//cmd := exec.Command("go", args...)
-	//cmd := exec.Command("/home/adam/go/bin/gotip", args...)
-	cmd := exec.Command("gotip", args...)
+	cmd := exec.Command("go", args...)
+	//cmd := exec.Command("gotip", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
