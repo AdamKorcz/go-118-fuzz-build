@@ -24,11 +24,17 @@ var (
 	flagWork = flag.Bool("work", false, "print the name of the temporary work directory and do not remove it when exiting")
 	flagX    = flag.Bool("x", false, "print the commands")
 
+	flagInclude  = flag.String("include", "*", "a comma-separated list of import paths to instrument")
+	flagPreserve = flag.String("preserve", "", "a comma-separated list of import paths not to instrument")
+
 	LoadMode = packages.NeedName |
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
-		packages.NeedImports
+		packages.NeedImports |
+		packages.NeedDeps
 )
+
+var include, ignore []string
 
 func main() {
 	flag.Parse()
@@ -44,16 +50,8 @@ func main() {
 
 	buildFlags := []string{
 		"-buildmode", "c-archive",
-		"-gcflags", "all=-d=libfuzzer",
 		"-tags", tags,
 		"-trimpath",
-	}
-
-	suppress := []string{
-		"syscall", // https://github.com/google/oss-fuzz/issues/3639
-	}
-	for _, pkg := range suppress {
-		buildFlags = append(buildFlags, "-gcflags", pkg+"=-d=libfuzzer=0")
 	}
 
 	if *flagRace {
@@ -76,6 +74,19 @@ func main() {
 	if strings.Contains(path, "...") {
 		log.Fatal("package path must not contain ... wildcards")
 	}
+
+	include = strings.Split(*flagInclude, ",")
+	ignore = []string{
+		"runtime/cgo",   // No reason to instrument these.
+		"runtime/pprof", // No reason to instrument these.
+		"runtime/race",  // No reason to instrument these.
+		"syscall",       // https://github.com/google/oss-fuzz/issues/3639
+	}
+	if *flagPreserve != "" {
+		ignore = append(ignore, strings.Split(*flagPreserve, ",")...)
+	}
+	buildFlags = append(buildFlags, "-gcflags", "all=-d=libfuzzer")
+
 	//fset := token.NewFileSet()
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
@@ -85,6 +96,12 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
 	}
+	visit := func(pkg *packages.Package) {
+		if !shouldInstrument(pkg.PkgPath) {
+			buildFlags = append(buildFlags, "-gcflags", pkg.PkgPath+"=-d=libfuzzer=0")
+		}
+	}
+	packages.Visit(pkgs, nil, visit)
 	if packages.PrintErrors(pkgs) != 0 {
 		os.Exit(1)
 	}
@@ -160,6 +177,29 @@ func main() {
 		panic(err)
 	}
 	os.Remove(fuzzerFile + "_fuzz.go")
+}
+
+// Packages that match one of the include patterns (default is include all packages)
+// and none of the exclude patterns (default is none) will be instrumented.
+func shouldInstrument(pkgPath string) bool {
+	for _, incPath := range include {
+		if matchPattern(incPath, pkgPath) {
+			for _, excPath := range ignore {
+				if matchPattern(excPath, pkgPath) {
+					return false
+				}
+			}
+			return true
+		}
+	}
+	return false
+}
+
+func matchPattern(pattern, path string) bool {
+	if strings.HasSuffix(pattern, "*") {
+		return strings.HasPrefix(path, strings.TrimSuffix(pattern, "*"))
+	}
+	return strings.EqualFold(path, pattern)
 }
 
 var mainTmpl = template.Must(template.New("main").Parse(`
