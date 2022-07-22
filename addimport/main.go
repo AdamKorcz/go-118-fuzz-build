@@ -9,6 +9,7 @@ import (
 	"go/printer"
 	"go/token"
 	"os"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 var (
@@ -25,29 +26,9 @@ func isFlagSet(name string) bool {
     return found
 }
 
-func addImport(astFile *ast.File) {
-	path := "github.com/AdamKorcz/go-118-fuzz-build/utils"
-	name := "go118fuzzbuildutils"
-	newImport := &ast.ImportSpec{
-		Name: ast.NewIdent(name),
-		Path: &ast.BasicLit{
-			Kind:  token.STRING,
-			Value: fmt.Sprintf("%q", path),
-		},
-	}
-	impDecl := &ast.GenDecl{
-		Lparen: astFile.Name.End(),
-		Tok:    token.IMPORT,
-		Specs: []ast.Spec{
-			newImport,
-		},
-		Rparen: astFile.Name.End(),
-	}
-	_, _ = newImport, impDecl
-	astFile.Decls = append(astFile.Decls, nil)
-	copy(astFile.Decls[1:], astFile.Decls[0:])
-	astFile.Decls[0] = impDecl
-	astFile.Imports = append(astFile.Imports, newImport)
+func addImport(astFile *ast.File, fset *token.FileSet) {
+	astutil.AddNamedImport(fset, astFile, "_", "github.com/AdamKorcz/go-118-fuzz-build/testingtypes")
+	astutil.AddNamedImport(fset, astFile, "go118fuzzbuildutils", "github.com/AdamKorcz/go-118-fuzz-build/utils")
 }
 
 func getStringVersion(start, end token.Pos, src  []byte) string {
@@ -62,7 +43,7 @@ func main() {
 	}
 	_, err := os.Stat(*fuzzerPath)
 	if err != nil {
-		fmt.Printf("ERROR: %s does not exist\n", fuzzerPath)
+		fmt.Printf("ERROR: %s does not exist\n", *fuzzerPath)
 		os.Exit(1)
 	}
 	fset := token.NewFileSet()
@@ -71,7 +52,7 @@ func main() {
 		panic(err)
 	}
 	
-	addImport(f)
+	addImport(f, fset)
 
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)
