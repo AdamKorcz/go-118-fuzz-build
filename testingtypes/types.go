@@ -7,7 +7,6 @@ import (
 )
 
 type T struct {
-
 }
 
 func unsupportedApi(name string) string {
@@ -27,10 +26,15 @@ func Deadline() (deadline time.Time, ok bool) {
 
 func Error(args ...any) {
 	fmt.Println(args...)
-	panic(unsupportedApi("Encoutered"))
+	panic("error")
 }
 
-func Errorf(format string, args ...any) {}
+func Errorf(format string, args ...any) {
+	fmt.Println(format)
+	fmt.Println(args...)
+	panic("errorf")
+}
+
 func Fail() {
 	panic(unsupportedApi("t.Fail()"))
 }
