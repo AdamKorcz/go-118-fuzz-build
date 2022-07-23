@@ -63,14 +63,14 @@ func Name() string {
 	return "fuzzer"
 }
 
-func (t *T) Parallel() {
+func Parallel() {
 	panic(unsupportedApi("t.Failed()"))
 }
-func (t *T) Run(name string, f func(t *T)) bool {
+func Run(name string, f func(t *T)) bool {
 	panic(unsupportedApi("t.Run()."))
 }
 
-func (t *T) Setenv(key, value string) {
+func Setenv(key, value string) {
 
 }
 
