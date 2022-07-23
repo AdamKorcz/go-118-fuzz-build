@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+type T struct {
+
+}
+
 func unsupportedApi(name string) string {
 	plsOpenIss := "Please open an issue https://github.com/AdamKorcz/go-118-fuzz-build if you need this feature."
 	var b strings.Builder
