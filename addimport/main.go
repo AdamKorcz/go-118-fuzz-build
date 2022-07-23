@@ -8,8 +8,8 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"os"
 	"golang.org/x/tools/go/ast/astutil"
+	"os"
 )
 
 var (
@@ -17,13 +17,13 @@ var (
 )
 
 func isFlagSet(name string) bool {
-    found := false
-    flag.Visit(func(f *flag.Flag) {
-        if f.Name == name {
-            found = true
-        }
-    })
-    return found
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
 }
 
 func addImport(astFile *ast.File, fset *token.FileSet) {
@@ -31,8 +31,8 @@ func addImport(astFile *ast.File, fset *token.FileSet) {
 	astutil.AddNamedImport(fset, astFile, "go118fuzzbuildutils", "github.com/AdamKorcz/go-118-fuzz-build/utils")
 }
 
-func getStringVersion(start, end token.Pos, src  []byte) string {
-    return string(src[start-1:end-1])
+func getStringVersion(start, end token.Pos, src []byte) string {
+	return string(src[start-1 : end-1])
 }
 
 func main() {
@@ -51,8 +51,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	addImport(f, fset)
+
+	rewriteLogStatements(*fuzzerPath, f, fset)
 
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)
@@ -67,14 +69,14 @@ func main() {
 	}
 
 	fo, err := os.Create(*fuzzerPath)
-    if err != nil {
-        panic(err)
-    }
-    defer fo.Close()
+	if err != nil {
+		panic(err)
+	}
+	defer fo.Close()
 
-    _, err = fo.Write(buf.Bytes())
-    if err != nil {
-    	panic(err)
-    }
+	_, err = fo.Write(buf.Bytes())
+	if err != nil {
+		panic(err)
+	}
 
 }

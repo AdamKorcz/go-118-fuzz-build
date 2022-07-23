@@ -6,8 +6,6 @@ import (
 	"time"
 )
 
-type T struct{}
-
 func unsupportedApi(name string) string {
 	plsOpenIss := "Please open an issue https://github.com/AdamKorcz/go-118-fuzz-build if you need this feature."
 	var b strings.Builder
@@ -16,52 +14,52 @@ func unsupportedApi(name string) string {
 	return b.String()
 }
 
-func (c *T) Cleanup(f func()) {
+func Cleanup(f func()) {
 	f()
 }
-func (t *T) Deadline() (deadline time.Time, ok bool) {
+func Deadline() (deadline time.Time, ok bool) {
 	panic(unsupportedApi("t.Deadline()"))
 }
 
-func (c *T) Error(args ...any) {
+func Error(args ...any) {
 	fmt.Println(args...)
 	panic(unsupportedApi("Encoutered"))
 }
 
-func (c *T) Errorf(format string, args ...any) {}
-func (c *T) Fail() {
+func Errorf(format string, args ...any) {}
+func Fail() {
 	panic(unsupportedApi("t.Fail()"))
 }
 
-func (c *T) FailNow() {
+func FailNow() {
 	panic(unsupportedApi("t.FailNow()"))
 }
 
-func (c *T) Failed() bool {
+func Failed() bool {
 	panic(unsupportedApi("t.Failed()"))
 }
 
-func (c *T) Fatal(args ...any) {
+func Fatal(args ...any) {
 	fmt.Println(args...)
 	panic("fatal")
 }
-func (c *T) Fatalf(format string, args ...any) {
+func Fatalf(format string, args ...any) {
 	fmt.Println(format, args)
 	panic("fatal")
 }
-func (c *T) Helper() {
+func Helper() {
 	panic(unsupportedApi("t.Failed()"))
 }
-func (c *T) Log(args ...any) {
+func Log(args ...any) {
 	fmt.Println(args...)
 }
 
-func (c *T) Logf(format string, args ...any) {
+func Logf(format string, args ...any) {
 	fmt.Println(format)
 	fmt.Println(args...)
 }
 
-func (c *T) Name() string {
+func Name() string {
 	return "fuzzer"
 }
 
@@ -76,18 +74,18 @@ func (t *T) Setenv(key, value string) {
 
 }
 
-func (c *T) Skip(args ...any) {
+func Skip(args ...any) {
 	panic(unsupportedApi("t.Skip()"))
 }
-func (c *T) SkipNow() {
+func SkipNow() {
 	panic(unsupportedApi("t.SkipNow()"))
 }
-func (c *T) Skipf(format string, args ...any) {
+func Skipf(format string, args ...any) {
 	panic(unsupportedApi("t.Skipf()"))
 }
-func (c *T) Skipped() bool {
+func Skipped() bool {
 	panic(unsupportedApi("t.Skipped()"))
 }
-func (c *T) TempDir() string {
+func TempDir() string {
 	panic(unsupportedApi("t.TempDir()"))
 }

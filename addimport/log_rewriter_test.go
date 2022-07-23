@@ -4,32 +4,28 @@ package main
 
 import (
 	"bytes"
-	"fmt"
-	"go/parser"
-	"go/printer"
-	"testing"
+	//"fmt"
 
+	"go/parser"
+
+	"go/printer"
 	"go/token"
+	"testing"
 )
 
-// Test that RangeNodes returns a slice of nodes with contiguous coverage.
-// https://github.com/transparency-dev/merkle/blob/main/docs/compact_ranges.md#definition
-func TestMain(T *testing.T) {
+func TestRewriteLogStatements(t *testing.T) {
 	fuzzerPath := "../testdata/first_fuzz_test.go"
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, fuzzerPath, nil, parser.ParseComments)
 	if err != nil {
 		panic(err)
 	}
-
-	addImport(f, fset)
 	rewriteLogStatements(fuzzerPath, f, fset)
-
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(buf.String())
-	return
+	t.Log("HEre")
+	t.Log(buf.String())
 }
