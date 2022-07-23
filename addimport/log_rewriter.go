@@ -8,6 +8,7 @@ import (
 type LogRewriter struct {
 	fset *token.FileSet
 	file *ast.File
+	addTestingtypes bool
 }
 
 func (walker *LogRewriter) Visit(node ast.Node) ast.Visitor {
@@ -17,6 +18,7 @@ func (walker *LogRewriter) Visit(node ast.Node) ast.Visitor {
 			if _, ok := aa.X.(*ast.Ident); ok {
 				if aa.X.(*ast.Ident).Name == "t" {
 					if isTestFatal(aa.Sel.Name) {
+						walker.addTestingtypes = true
 						aa.X.(*ast.Ident).Name = "testingtypes"
 					}
 				}
@@ -26,10 +28,12 @@ func (walker *LogRewriter) Visit(node ast.Node) ast.Visitor {
 	return walker
 }
 
-func rewriteLogStatements(path string, astFile *ast.File, fset *token.FileSet) {
-	walker := &LogRewriter{file: astFile, fset: fset}
+func rewriteLogStatements(path string, astFile *ast.File, fset *token.FileSet) bool {
+	walker := &LogRewriter{file: astFile, fset: fset, addTestingtypes: false}
 
 	ast.Walk(walker, walker.file)
+
+	return walker.addTestingtypes
 }
 
 func isTestFatal(name string) bool {

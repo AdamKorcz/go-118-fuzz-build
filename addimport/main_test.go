@@ -21,9 +21,9 @@ func TestMain(T *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	addTestingTypes := rewriteLogStatements(fuzzerPath, f, fset)
 
-	addImport(f, fset)
-	rewriteLogStatements(fuzzerPath, f, fset)
+	addImport(f, fset, addTestingTypes)
 
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)

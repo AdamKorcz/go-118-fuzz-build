@@ -26,8 +26,10 @@ func isFlagSet(name string) bool {
 	return found
 }
 
-func addImport(astFile *ast.File, fset *token.FileSet) {
-	astutil.AddNamedImport(fset, astFile, "_", "github.com/AdamKorcz/go-118-fuzz-build/testingtypes")
+func addImport(astFile *ast.File, fset *token.FileSet, addTestingtypes bool) {
+	if addTestingtypes {
+		astutil.AddImport(fset, astFile, "github.com/AdamKorcz/go-118-fuzz-build/testingtypes")
+	}
 	astutil.AddNamedImport(fset, astFile, "go118fuzzbuildutils", "github.com/AdamKorcz/go-118-fuzz-build/utils")
 }
 
@@ -52,9 +54,10 @@ func main() {
 		panic(err)
 	}
 
-	addImport(f, fset)
+	addTestingtypes := rewriteLogStatements(*fuzzerPath, f, fset)
 
-	rewriteLogStatements(*fuzzerPath, f, fset)
+	addImport(f, fset, addTestingtypes)
+
 
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)
