@@ -2,11 +2,13 @@ package testingtypes
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
 
 type T struct {
+	CreatedDirs 	[]string
 }
 
 func unsupportedApi(name string) string {
@@ -17,83 +19,89 @@ func unsupportedApi(name string) string {
 	return b.String()
 }
 
-func Cleanup(f func()) {
+func (t *T) Cleanup(f func()) {
 	f()
 }
-func Deadline() (deadline time.Time, ok bool) {
+func (t *T) Deadline() (deadline time.Time, ok bool) {
 	panic(unsupportedApi("t.Deadline()"))
 }
 
-func Error(args ...any) {
+func (t *T) Error(args ...any) {
 	fmt.Println(args...)
 	panic("error")
 }
 
-func Errorf(format string, args ...any) {
+func (t *T) Errorf(format string, args ...any) {
 	fmt.Println(format)
 	fmt.Println(args...)
 	panic("errorf")
 }
 
-func Fail() {
+func (t *T) Fail() {
 	panic(unsupportedApi("t.Fail()"))
 }
 
-func FailNow() {
+func (t *T) FailNow() {
 	panic(unsupportedApi("t.FailNow()"))
 }
 
-func Failed() bool {
+func (t *T) Failed() bool {
 	panic(unsupportedApi("t.Failed()"))
 }
 
-func Fatal(args ...any) {
+func (t *T) Fatal(args ...any) {
 	fmt.Println(args...)
 	panic("fatal")
 }
-func Fatalf(format string, args ...any) {
+func (t *T) Fatalf(format string, args ...any) {
 	fmt.Println(format, args)
 	panic("fatal")
 }
-func Helper() {
+func (t *T) Helper() {
 	panic(unsupportedApi("t.Failed()"))
 }
-func Log(args ...any) {
+func (t *T) Log(args ...any) {
 	fmt.Println(args...)
 }
 
-func Logf(format string, args ...any) {
+func (t *T) Logf(format string, args ...any) {
 	fmt.Println(format)
 	fmt.Println(args...)
 }
 
-func Name() string {
+func (t *T) Name() string {
 	return "fuzzer"
 }
 
-func Parallel() {
+func (t *T) Parallel() {
 	panic(unsupportedApi("t.Failed()"))
 }
-func Run(name string, f func(t *T)) bool {
+func (t *T) Run(name string, f func(t *T)) bool {
 	panic(unsupportedApi("t.Run()."))
 }
 
-func Setenv(key, value string) {
+func (t *T) Setenv(key, value string) {
 
 }
 
-func Skip(args ...any) {
+func (t *T) Skip(args ...any) {
 	panic(unsupportedApi("t.Skip()"))
 }
-func SkipNow() {
+func (t *T) SkipNow() {
 	panic(unsupportedApi("t.SkipNow()"))
 }
-func Skipf(format string, args ...any) {
+func (t *T) Skipf(format string, args ...any) {
 	panic(unsupportedApi("t.Skipf()"))
 }
-func Skipped() bool {
+func (t *T) Skipped() bool {
 	panic(unsupportedApi("t.Skipped()"))
 }
-func TempDir() string {
-	panic(unsupportedApi("t.TempDir()"))
+
+func (t *T) TempDir() string {
+	f, err := os.CreateTemp("/tmp", "fuzzdir-")
+	if err != nil {
+		panic(err)
+	}
+	t.CreatedDirs = append(t.CreatedDirs, f.Name())
+	return f.Name()
 }
