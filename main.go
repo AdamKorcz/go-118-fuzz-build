@@ -98,8 +98,8 @@ func main() {
 	defer os.Remove(mainFile.Name())
 
 	type Data struct {
-		PkgPath string
-		Func    string
+		PkgPath      string
+		Func         string
 		Declarations string
 		FuzzerParams string
 	}
@@ -145,7 +145,6 @@ var mainTmpl = template.Must(template.New("main").Parse(`
 package main
 
 import (
-	"testing"
 	"unsafe"
 	target {{printf "%q" .PkgPath}}
 	"github.com/AdamKorcz/go-118-fuzz-build/utils"
@@ -156,17 +155,19 @@ import "C"
 
 //export LLVMFuzzerTestOneInput
 func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
-	// TODO(mdempsky): Use unsafe.Slice once golang.org/issue/19367 is accepted.
-	s := (*[1<<30]byte)(unsafe.Pointer(data))[:size:size]
+	s := unsafe.Slice((*byte)(unsafe.Pointer(data)), size)
 	//target.{{.Func}}(s)
-	LibFuzzer{{.Func}}(s)
+	ok := LibFuzzer{{.Func}}(s)
+	if !ok {
+		return -1
+	}
 	return 0
 }
 
-func LibFuzzer{{.Func}}(data []byte) int {
-	fuzzer := &utils.F{Data:data, T:&testing.T{}}
+func LibFuzzer{{.Func}}(data []byte) bool {
+	fuzzer := utils.NewF("LibFuzzer", data)
 	target.{{.Func}}(fuzzer)
-	return 1
+	return !fuzzer.Skipped()
 }
 
 func main() {

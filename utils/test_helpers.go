@@ -1,27 +1,209 @@
 package utils
 
 import (
+	"errors"
 	"fmt"
-	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"reflect"
-	"testing"
+	"runtime"
+	"runtime/debug"
+	"sync"
+	"time"
+
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 
-type F struct {
-	Data     []byte
-	T        *testing.T
-	FuzzFunc func(*testing.T, any)
+type T struct {
+	parent   *T
+	name     string
+	mu       sync.RWMutex
+	skipped  bool
+	failed   bool
+	finished bool
+	cleanups []func()
 }
 
-func (f *F) Add(args ...any)                   {}
-func (c *F) Cleanup(f func())                  {}
-func (c *F) Error(args ...any)                 {}
-func (c *F) Errorf(format string, args ...any) {}
-func (f *F) Fail()                             {}
-func (c *F) FailNow()                          {}
-func (c *F) Failed() bool                      { return false }
-func (c *F) Fatal(args ...any)                 {}
-func (c *F) Fatalf(format string, args ...any) {}
+// Most of the T functions are copied from the stdlib
+
+var errNilPanicOrGoexit = errors.New("test executed panic(nil) or runtime.Goexit")
+
+type panicHandling int
+
+const (
+	normalPanic panicHandling = iota
+	recoverAndReturnPanic
+)
+
+func (t *T) log(s string) {}
+func (t *T) Cleanup(f func()) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.cleanups = append(t.cleanups, f)
+}
+func (t *T) Deadline() (deadline time.Time, ok bool) { return time.Time{}, false }
+func (t *T) Log(args ...any) {
+	t.log(fmt.Sprintln(args...))
+}
+func (t *T) Logf(format string, args ...any) {
+	t.log(fmt.Sprintf(format, args...))
+}
+func (t *T) Error(args ...any) {
+	t.log(fmt.Sprintln(args...))
+	t.Fail()
+}
+func (t *T) Errorf(format string, args ...any) {
+	t.log(fmt.Sprintf(format, args...))
+	t.Fail()
+}
+func (t *T) Fatal(args ...any) {
+	t.log(fmt.Sprintln(args...))
+	t.FailNow()
+}
+func (t *T) Fatalf(format string, args ...any) {
+	t.log(fmt.Sprintf(format, args...))
+	t.FailNow()
+}
+func (t *T) Skip(args ...any) {
+	t.log(fmt.Sprintln(args...))
+	t.SkipNow()
+}
+func (t *T) Skipf(format string, args ...any) {
+	t.log(fmt.Sprintf(format, args...))
+	t.SkipNow()
+}
+func (t *T) Fail() {
+	if t.parent != nil {
+		t.parent.Fail()
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.failed = true
+}
+func (t *T) FailNow() {
+	t.Fail()
+	t.mu.Lock()
+	t.finished = true
+	t.mu.Unlock()
+	runtime.Goexit()
+}
+func (t *T) Failed() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.failed
+}
+func (t *T) Helper()      {}
+func (t *T) Name() string { return t.name }
+func (t *T) Parallel()    {}
+func (t *T) Run(name string, f func(t *T)) bool {
+	s := new(T)
+	s.parent = t
+	s.name = t.name + "/" + name
+	done := make(chan struct{})
+	go s.run(done, f)
+	<-done
+	return !s.failed
+}
+
+func (t *T) run(done chan<- struct{}, f func(t *T)) {
+	defer close(done)
+	defer func() {
+		err := recover()
+
+		t.mu.RLock()
+		finished := t.finished
+		t.mu.RUnlock()
+		if !finished && err == nil {
+			err = errNilPanicOrGoexit
+			for p := t.parent; p != nil; p = p.parent {
+				p.mu.RLock()
+				finished = p.finished
+				p.mu.RUnlock()
+				if finished {
+					t.Errorf("%v: subtest may have called FailNow on a parent test", err)
+					err = nil
+					break
+				}
+			}
+		}
+
+		if err == nil {
+			return
+		}
+
+		prefix := "panic: "
+		if err == errNilPanicOrGoexit {
+			prefix = ""
+		}
+		t.Errorf("%s%s\n%s\n", prefix, err, string(debug.Stack()))
+		t.mu.Lock()
+		t.finished = true
+		t.mu.Unlock()
+	}()
+	defer t.runCleanup(normalPanic)
+
+	f(t)
+
+	t.mu.Lock()
+	t.finished = true
+	t.mu.Unlock()
+}
+func (t *T) runCleanup(ph panicHandling) (panicVal any) {
+	if ph == recoverAndReturnPanic {
+		defer func() {
+			panicVal = recover()
+		}()
+	}
+
+	// Make sure that if a cleanup function panics,
+	// we still run the remaining cleanup functions.
+	defer func() {
+		t.mu.Lock()
+		recur := len(t.cleanups) > 0
+		t.mu.Unlock()
+		if recur {
+			t.runCleanup(normalPanic)
+		}
+	}()
+
+	for {
+		var cleanup func()
+		t.mu.Lock()
+		if len(t.cleanups) > 0 {
+			last := len(t.cleanups) - 1
+			cleanup = t.cleanups[last]
+			t.cleanups = t.cleanups[:last]
+		}
+		t.mu.Unlock()
+		if cleanup == nil {
+			return nil
+		}
+		cleanup()
+	}
+}
+func (t *T) Setenv(key, value string) {}
+func (t *T) SkipNow() {
+	t.mu.Lock()
+	t.skipped = true
+	t.finished = true
+	t.mu.Unlock()
+	runtime.Goexit()
+}
+func (t *T) Skipped() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.skipped
+}
+func (t *T) TempDir() string { return "/tmp" }
+
+type F struct {
+	T
+	data []byte
+}
+
+func NewF(name string, data []byte) *F {
+	return &F{T: T{name: name}, data: data}
+}
+
+func (f *F) Add(args ...any) {}
 func (f *F) Fuzz(ff any) {
 	// we are assuming that ff is a func.
 	// TODO: Add a check for UX purposes
@@ -34,8 +216,8 @@ func (f *F) Fuzz(ff any) {
 
 		types = append(types, t)
 	}
-	args := []reflect.Value{reflect.ValueOf(f.T)}
-	fuzzConsumer := fuzz.NewConsumer(f.Data)
+	args := []reflect.Value{reflect.ValueOf(&f.T)}
+	fuzzConsumer := fuzz.NewConsumer(f.data)
 	for _, v := range types {
 		switch v.String() {
 		case "[]uint8":
@@ -170,15 +352,8 @@ func (f *F) Fuzz(ff any) {
 			fmt.Println(v.String())
 		}
 	}
-	fn.Call(args)
+
+	done := make(chan struct{})
+	go f.run(done, func(*T) { fn.Call(args) })
+	<-done
 }
-func (f *F) Helper()                          {}
-func (c *F) Log(args ...any)                  {}
-func (c *F) Logf(format string, args ...any)  {}
-func (c *F) Name() string                     { return "name" }
-func (c *F) Setenv(key, value string)         {}
-func (c *F) Skip(args ...any)                 {}
-func (c *F) SkipNow()                         {}
-func (c *F) Skipf(format string, args ...any) {}
-func (f *F) Skipped() bool                    { return false }
-func (c *F) TempDir() string                  { return "/tmp" }

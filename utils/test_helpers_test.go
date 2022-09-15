@@ -8,7 +8,7 @@ import (
 )
 
 func fuzzRune(f *F) {
-	f.Fuzz(func(t *testing.T, input rune) {
+	f.Fuzz(func(t *T, input rune) {
 		if reflect.TypeOf(input).String() != "int32" {
 			t.Fatalf("input is not int but should be")
 		}
@@ -19,7 +19,7 @@ func fuzzRune(f *F) {
 }
 
 func fuzzString(f *F) {
-	f.Fuzz(func(t *testing.T, input string) {
+	f.Fuzz(func(t *T, input string) {
 		if reflect.TypeOf(input).String() != "string" {
 			t.Fatalf("input is not string but should be")
 		}
@@ -30,7 +30,7 @@ func fuzzString(f *F) {
 }
 
 func fuzzTwoStrings(f *F) {
-	f.Fuzz(func(t *testing.T, input, input2 string) {
+	f.Fuzz(func(t *T, input, input2 string) {
 		if reflect.TypeOf(input).String() != "string" {
 			t.Fatalf("input is not string but should be")
 		}
@@ -47,7 +47,7 @@ func fuzzTwoStrings(f *F) {
 }
 
 func fuzzThreeArgs(f *F) {
-	f.Fuzz(func(t *testing.T, input, input2 string, input3 int) {
+	f.Fuzz(func(t *T, input, input2 string, input3 int) {
 		if reflect.TypeOf(input).String() != "string" {
 			t.Fatalf("input is not string but should be")
 		}
@@ -70,7 +70,7 @@ func fuzzThreeArgs(f *F) {
 }
 
 func fuzzFourArgs(f *F) {
-	f.Fuzz(func(t *testing.T, input, input2 string, input3 int, input4 uint32) {
+	f.Fuzz(func(t *T, input, input2 string, input3 int, input4 uint32) {
 		if reflect.TypeOf(input).String() != "string" {
 			t.Fatalf("input is not string but should be")
 		}
@@ -100,7 +100,7 @@ func fuzzFourArgs(f *F) {
 }
 
 func fuzzFloat32(f *F) {
-	f.Fuzz(func(t *testing.T, input float32) {
+	f.Fuzz(func(t *T, input float32) {
 		if reflect.TypeOf(input).String() != "float32" {
 			t.Fatalf("input is not float32 but should be")
 		}
@@ -112,7 +112,7 @@ func fuzzFloat32(f *F) {
 }
 
 func fuzzFloat64(f *F) {
-	f.Fuzz(func(t *testing.T, input float64) {
+	f.Fuzz(func(t *T, input float64) {
 		if reflect.TypeOf(input).String() != "float64" {
 			t.Fatalf("input is not float64 but should be")
 		}
@@ -125,36 +125,36 @@ func fuzzFloat64(f *F) {
 
 func TestFuzzFloat32(t *testing.T) {
 	data := []byte{0x3, 0x41, 0x42, 0x43, 0x44}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzFloat32(f)
 }
 
 func TestFuzzFloat64(t *testing.T) {
 	data := []byte{0x3, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzFloat64(f)
 }
 
 func TestFuzzRune(t *testing.T) {
 	data := []byte{0x41, 0x42, 0x43}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzRune(f)
 }
 
 func TestFuzzString(t *testing.T) {
 	data := []byte{0x3, 0x41, 0x42, 0x43}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzString(f)
 }
 
 func TestFuzzTwoStrings(t *testing.T) {
 	data := []byte{0x2, 0x41, 0x42, 0x1, 0x43}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzTwoStrings(f)
 }
 
 func TestFuzzFourArgs(t *testing.T) {
 	data := []byte{0x2, 0x41, 0x42, 0x1, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49}
-	f := &F{Data: data, T: t}
+	f := NewF(t.Name(), data)
 	fuzzFourArgs(f)
 }
