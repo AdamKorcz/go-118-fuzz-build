@@ -8,8 +8,9 @@ import (
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"golang.org/x/tools/go/ast/astutil"
 	"os"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 var (
@@ -54,10 +55,11 @@ func main() {
 		panic(err)
 	}
 
+	ast.Walk(TFRewriter{}, f)
+
 	addTestingtypes := rewriteLogStatements(*fuzzerPath, f, fset)
 
 	addImport(f, fset, addTestingtypes)
-
 
 	buf := new(bytes.Buffer)
 	err = printer.Fprint(buf, fset, f)
