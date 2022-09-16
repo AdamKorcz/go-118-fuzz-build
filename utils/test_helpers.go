@@ -180,11 +180,14 @@ func (t *T) runCleanup(ph panicHandling) (panicVal any) {
 	}
 }
 func (t *T) Setenv(key, value string) {}
-func (t *T) SkipNow() {
+func (t *T) markSkipped() {
 	t.mu.Lock()
 	t.skipped = true
 	t.finished = true
 	t.mu.Unlock()
+}
+func (t *T) SkipNow() {
+	t.markSkipped()
 	runtime.Goexit()
 }
 func (t *T) Skipped() bool {
@@ -223,6 +226,7 @@ func (f *F) Fuzz(ff any) {
 		case "[]uint8":
 			b, err := fuzzConsumer.GetBytes()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newBytes := reflect.New(v)
@@ -231,6 +235,7 @@ func (f *F) Fuzz(ff any) {
 		case "string":
 			s, err := fuzzConsumer.GetString()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newString := reflect.New(v)
@@ -239,6 +244,7 @@ func (f *F) Fuzz(ff any) {
 		case "int":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newInt := reflect.New(v)
@@ -247,6 +253,7 @@ func (f *F) Fuzz(ff any) {
 		case "int8":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newInt := reflect.New(v)
@@ -255,6 +262,7 @@ func (f *F) Fuzz(ff any) {
 		case "int16":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newInt := reflect.New(v)
@@ -263,6 +271,7 @@ func (f *F) Fuzz(ff any) {
 		case "int32":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newInt := reflect.New(v)
@@ -271,6 +280,7 @@ func (f *F) Fuzz(ff any) {
 		case "int64":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newInt := reflect.New(v)
@@ -279,6 +289,7 @@ func (f *F) Fuzz(ff any) {
 		case "uint":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newUint := reflect.New(v)
@@ -287,6 +298,7 @@ func (f *F) Fuzz(ff any) {
 		case "uint8":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newUint := reflect.New(v)
@@ -295,6 +307,7 @@ func (f *F) Fuzz(ff any) {
 		case "uint16":
 			randInt, err := fuzzConsumer.GetUint16()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newUint16 := reflect.New(v)
@@ -303,6 +316,7 @@ func (f *F) Fuzz(ff any) {
 		case "uint32":
 			randInt, err := fuzzConsumer.GetUint32()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newUint32 := reflect.New(v)
@@ -311,6 +325,7 @@ func (f *F) Fuzz(ff any) {
 		case "uint64":
 			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newUint64 := reflect.New(v)
@@ -319,6 +334,7 @@ func (f *F) Fuzz(ff any) {
 		case "rune":
 			randRune, err := fuzzConsumer.GetRune()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newRune := reflect.New(v)
@@ -327,6 +343,7 @@ func (f *F) Fuzz(ff any) {
 		case "float32":
 			randFloat, err := fuzzConsumer.GetFloat32()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newFloat := reflect.New(v)
@@ -335,6 +352,7 @@ func (f *F) Fuzz(ff any) {
 		case "float64":
 			randFloat, err := fuzzConsumer.GetFloat64()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newFloat := reflect.New(v)
@@ -343,6 +361,7 @@ func (f *F) Fuzz(ff any) {
 		case "bool":
 			randBool, err := fuzzConsumer.GetBool()
 			if err != nil {
+				f.markSkipped()
 				return
 			}
 			newBool := reflect.New(v)
