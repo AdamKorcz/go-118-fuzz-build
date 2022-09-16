@@ -199,14 +199,21 @@ func (t *T) TempDir() string { return "/tmp" }
 
 type F struct {
 	T
-	data []byte
+	data    []byte
+	capture bool
+	values  []any
+	corpus  [][]any
 }
 
 func NewF(name string, data []byte) *F {
 	return &F{T: T{name: name}, data: data}
 }
 
-func (f *F) Add(args ...any) {}
+func NewCaptureF(name string, data []byte) *F {
+	return &F{T: T{name: name}, data: data, capture: true}
+}
+
+func (f *F) Add(args ...any) { f.corpus = append(f.corpus, args) }
 func (f *F) Fuzz(ff any) {
 	// we are assuming that ff is a func.
 	// TODO: Add a check for UX purposes
@@ -232,6 +239,7 @@ func (f *F) Fuzz(ff any) {
 			newBytes := reflect.New(v)
 			newBytes.Elem().SetBytes(b)
 			args = append(args, newBytes.Elem())
+			f.values = append(f.values, newBytes.Elem().Interface())
 		case "string":
 			s, err := fuzzConsumer.GetString()
 			if err != nil {
@@ -241,6 +249,7 @@ func (f *F) Fuzz(ff any) {
 			newString := reflect.New(v)
 			newString.Elem().SetString(s)
 			args = append(args, newString.Elem())
+			f.values = append(f.values, newString.Elem().Interface())
 		case "int":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -250,6 +259,7 @@ func (f *F) Fuzz(ff any) {
 			newInt := reflect.New(v)
 			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
+			f.values = append(f.values, newInt.Elem().Interface())
 		case "int8":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -259,6 +269,7 @@ func (f *F) Fuzz(ff any) {
 			newInt := reflect.New(v)
 			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
+			f.values = append(f.values, newInt.Elem().Interface())
 		case "int16":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -268,6 +279,7 @@ func (f *F) Fuzz(ff any) {
 			newInt := reflect.New(v)
 			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
+			f.values = append(f.values, newInt.Elem().Interface())
 		case "int32":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -277,6 +289,7 @@ func (f *F) Fuzz(ff any) {
 			newInt := reflect.New(v)
 			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
+			f.values = append(f.values, newInt.Elem().Interface())
 		case "int64":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -286,6 +299,7 @@ func (f *F) Fuzz(ff any) {
 			newInt := reflect.New(v)
 			newInt.Elem().SetInt(int64(randInt))
 			args = append(args, newInt.Elem())
+			f.values = append(f.values, newInt.Elem().Interface())
 		case "uint":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -295,6 +309,7 @@ func (f *F) Fuzz(ff any) {
 			newUint := reflect.New(v)
 			newUint.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint.Elem())
+			f.values = append(f.values, newUint.Elem().Interface())
 		case "uint8":
 			randInt, err := fuzzConsumer.GetInt()
 			if err != nil {
@@ -304,6 +319,7 @@ func (f *F) Fuzz(ff any) {
 			newUint := reflect.New(v)
 			newUint.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint.Elem())
+			f.values = append(f.values, newUint.Elem().Interface())
 		case "uint16":
 			randInt, err := fuzzConsumer.GetUint16()
 			if err != nil {
@@ -313,6 +329,7 @@ func (f *F) Fuzz(ff any) {
 			newUint16 := reflect.New(v)
 			newUint16.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint16.Elem())
+			f.values = append(f.values, newUint16.Elem().Interface())
 		case "uint32":
 			randInt, err := fuzzConsumer.GetUint32()
 			if err != nil {
@@ -322,6 +339,7 @@ func (f *F) Fuzz(ff any) {
 			newUint32 := reflect.New(v)
 			newUint32.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint32.Elem())
+			f.values = append(f.values, newUint32.Elem().Interface())
 		case "uint64":
 			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
@@ -331,6 +349,7 @@ func (f *F) Fuzz(ff any) {
 			newUint64 := reflect.New(v)
 			newUint64.Elem().SetUint(uint64(randInt))
 			args = append(args, newUint64.Elem())
+			f.values = append(f.values, newUint64.Elem().Interface())
 		case "rune":
 			randRune, err := fuzzConsumer.GetRune()
 			if err != nil {
@@ -340,6 +359,7 @@ func (f *F) Fuzz(ff any) {
 			newRune := reflect.New(v)
 			newRune.Elem().Set(reflect.ValueOf(randRune))
 			args = append(args, newRune.Elem())
+			f.values = append(f.values, newRune.Elem().Interface())
 		case "float32":
 			randFloat, err := fuzzConsumer.GetFloat32()
 			if err != nil {
@@ -349,6 +369,7 @@ func (f *F) Fuzz(ff any) {
 			newFloat := reflect.New(v)
 			newFloat.Elem().Set(reflect.ValueOf(randFloat))
 			args = append(args, newFloat.Elem())
+			f.values = append(f.values, newFloat.Elem().Interface())
 		case "float64":
 			randFloat, err := fuzzConsumer.GetFloat64()
 			if err != nil {
@@ -358,6 +379,7 @@ func (f *F) Fuzz(ff any) {
 			newFloat := reflect.New(v)
 			newFloat.Elem().Set(reflect.ValueOf(randFloat))
 			args = append(args, newFloat.Elem())
+			f.values = append(f.values, newFloat.Elem().Interface())
 		case "bool":
 			randBool, err := fuzzConsumer.GetBool()
 			if err != nil {
@@ -367,9 +389,14 @@ func (f *F) Fuzz(ff any) {
 			newBool := reflect.New(v)
 			newBool.Elem().Set(reflect.ValueOf(randBool))
 			args = append(args, newBool.Elem())
+			f.values = append(f.values, newBool.Elem().Interface())
 		default:
 			fmt.Println(v.String())
 		}
+	}
+
+	if f.capture {
+		return
 	}
 
 	done := make(chan struct{})
