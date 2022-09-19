@@ -1,8 +1,10 @@
 package utils
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"runtime"
 	"runtime/debug"
@@ -20,6 +22,7 @@ type T struct {
 	failed   bool
 	finished bool
 	cleanups []func()
+	output   bytes.Buffer
 }
 
 // Most of the T functions are copied from the stdlib
@@ -33,7 +36,7 @@ const (
 	recoverAndReturnPanic
 )
 
-func (t *T) log(s string) {}
+func (t *T) log(s string) { _, _ = t.output.WriteString(s) }
 func (t *T) Cleanup(f func()) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -102,9 +105,13 @@ func (t *T) Run(name string, f func(t *T)) bool {
 	<-done
 	return !s.failed
 }
-
 func (t *T) run(done chan<- struct{}, f func(t *T)) {
 	defer close(done)
+	defer func() {
+		if t.parent != nil {
+			t.parent.Logf("Subtest %s failed with:\n%s", t.name, t.output.Bytes())
+		}
+	}()
 	defer func() {
 		err := recover()
 
@@ -195,7 +202,16 @@ func (t *T) Skipped() bool {
 	defer t.mu.Unlock()
 	return t.skipped
 }
-func (t *T) TempDir() string { return "/tmp" }
+func (t *T) TempDir() string {
+	dir, err := os.MkdirTemp("", "go-libfuzzer-*")
+	if err != nil {
+		t.Fatalf("Failed to create a tempdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	return dir
+}
 
 type F struct {
 	T
@@ -375,4 +391,13 @@ func (f *F) Fuzz(ff any) {
 	done := make(chan struct{})
 	go f.run(done, func(*T) { fn.Call(args) })
 	<-done
+
+	if f.Failed() {
+		s := f.output.String()
+		if len(s) == 0 {
+			panic("failed with no output")
+		} else {
+			panic("failed with:\n" + s)
+		}
+	}
 }
