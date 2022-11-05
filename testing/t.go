@@ -1,4 +1,4 @@
-package testingtypes
+package testing
 
 import (
 	"fmt"
@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// T can be used to terminate the current fuzz iteration
+// without terminating the whole fuzz run. To do so, simply
+// panic with the text "GO-FUZZ-BUILD-PANIC" and the fuzzer
+// will recover.
 type T struct {
 }
 
@@ -20,6 +24,7 @@ func unsupportedApi(name string) string {
 func Cleanup(f func()) {
 	f()
 }
+
 func Deadline() (deadline time.Time, ok bool) {
 	panic(unsupportedApi("t.Deadline()"))
 }
@@ -36,10 +41,11 @@ func Errorf(format string, args ...any) {
 }
 
 func Fail() {
-	panic(unsupportedApi("t.Fail()"))
+	panic("Called T.Fail()")
 }
 
 func FailNow() {
+	panic("Called T.Fail()")
 	panic(unsupportedApi("t.FailNow()"))
 }
 
@@ -68,7 +74,7 @@ func Logf(format string, args ...any) {
 }
 
 func Name() string {
-	return "fuzzer"
+	return "libFuzzer"
 }
 
 func Parallel() {
@@ -83,13 +89,17 @@ func Setenv(key, value string) {
 }
 
 func Skip(args ...any) {
-	panic(unsupportedApi("t.Skip()"))
+	panic("GO-FUZZ-BUILD-PANIC")
 }
 func SkipNow() {
-	panic(unsupportedApi("t.SkipNow()"))
+	panic("GO-FUZZ-BUILD-PANIC")
 }
+
+// Is not really supported. We just skip instead
+// of printing any message. A log message can be
+// added if need be.
 func Skipf(format string, args ...any) {
-	panic(unsupportedApi("t.Skipf()"))
+	panic("GO-FUZZ-BUILD-PANIC")
 }
 func Skipped() bool {
 	panic(unsupportedApi("t.Skipped()"))

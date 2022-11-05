@@ -23,6 +23,16 @@ var (
 	flagV    = flag.Bool("v", false, "print the names of packages as they are compiled")
 	flagWork = flag.Bool("work", false, "print the name of the temporary work directory and do not remove it when exiting")
 	flagX    = flag.Bool("x", false, "print the commands")
+
+	LoadMode = packages.NeedName |
+		packages.NeedFiles |
+		packages.NeedCompiledGoFiles |
+		packages.NeedImports |
+		packages.NeedTypes |
+		packages.NeedTypesSizes |
+		packages.NeedTypesInfo |
+		packages.NeedSyntax |
+		packages.NeedModule
 )
 
 func main() {
@@ -32,7 +42,7 @@ func main() {
 		log.Fatal("-func must be an exported identifier")
 	}
 
-	tags := "gofuzz,gofuzz_libfuzzer,libfuzzer"
+	tags := "gofuzz_libfuzzer,libfuzzer"
 	if *flagTags != "" {
 		tags += "," + *flagTags
 	}
@@ -71,8 +81,9 @@ func main() {
 	if strings.Contains(path, "...") {
 		log.Fatal("package path must not contain ... wildcards")
 	}
+	fset := token.NewFileSet()
 	pkgs, err := packages.Load(&packages.Config{
-		Mode:       packages.NeedName,
+		Mode:       LoadMode,
 		BuildFlags: buildFlags,
 	}, "pattern="+path)
 	if err != nil {
@@ -98,8 +109,8 @@ func main() {
 	defer os.Remove(mainFile.Name())
 
 	type Data struct {
-		PkgPath string
-		Func    string
+		PkgPath      string
+		Func         string
 		Declarations string
 		FuzzerParams string
 	}
@@ -145,10 +156,11 @@ var mainTmpl = template.Must(template.New("main").Parse(`
 package main
 
 import (
-	"testing"
+	"runtime"
+	"strings"
 	"unsafe"
 	target {{printf "%q" .PkgPath}}
-	"github.com/AdamKorcz/go-118-fuzz-build/utils"
+	"github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 // #include <stdint.h>
@@ -156,17 +168,36 @@ import "C"
 
 //export LLVMFuzzerTestOneInput
 func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
-	// TODO(mdempsky): Use unsafe.Slice once golang.org/issue/19367 is accepted.
 	s := (*[1<<30]byte)(unsafe.Pointer(data))[:size:size]
 	//target.{{.Func}}(s)
+	defer catchPanics()
 	LibFuzzer{{.Func}}(s)
 	return 0
 }
 
 func LibFuzzer{{.Func}}(data []byte) int {
-	fuzzer := &utils.F{Data:data, T:&testing.T{}}
+	fuzzer := &testing.F{Data:data, T:&testing.T{}}
 	target.{{.Func}}(fuzzer)
 	return 1
+}
+
+func catchPanics() {
+	if r := recover(); r != nil {
+		var err string
+		switch r.(type) {
+		case string:
+			err = r.(string)
+		case runtime.Error:
+			err = r.(runtime.Error).Error()
+		case error:
+			err = r.(error).Error()
+		}
+		if strings.Contains(err, "GO-FUZZ-BUILD-PANIC") {
+			return
+		} else {
+			panic(err)
+		}
+	}
 }
 
 func main() {
