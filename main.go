@@ -81,10 +81,11 @@ func main() {
 	if strings.Contains(path, "...") {
 		log.Fatal("package path must not contain ... wildcards")
 	}
-	fset := token.NewFileSet()
+	//fset := token.NewFileSet()
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags,
+		Tests: true,
 	}, "pattern="+path)
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
@@ -92,11 +93,11 @@ func main() {
 	if packages.PrintErrors(pkgs) != 0 {
 		os.Exit(1)
 	}
-	if len(pkgs) != 1 {
+	/*if len(pkgs) != 1 {
 		log.Fatal("package path matched multiple packages")
-	}
+	}*/
 
-	err = rewriteTestingImports(pkgs)
+	err = rewriteTestingImports(pkgs, *flagFunc)
 	if err != nil {
 		panic(err)
 	}

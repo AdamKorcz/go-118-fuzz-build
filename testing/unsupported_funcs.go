@@ -1,5 +1,9 @@
 package testing
 
+import (
+	"testing"
+)
+
 func AllocsPerRun(runs int, f func()) (avg float64) {
 	panic(unsupportedApi("testing.AllocsPerRun"))
 }
@@ -13,21 +17,14 @@ func Init() {
 	panic(unsupportedApi("testing.Init"))
 
 }
-func Main(matchString func(pat, str string) (bool, error), tests []InternalTest, ...) {
-	panic(unsupportedApi("testing.Main"))
-}
-func RegisterCover(c Cover) {
+func RegisterCover(c testing.Cover) {
 	panic(unsupportedApi("testing.RegisterCover"))
 }
-func RunBenchmarks(matchString func(pat, str string) (bool, error), ...) {
-	panic(unsupportedApi("testing.RunBenchmarks"))
-}
-
-func RunExamples(matchString func(pat, str string) (bool, error), examples []InternalExample) (ok bool) {
+func RunExamples(matchString func(pat, str string) (bool, error), examples []testing.InternalExample) (ok bool) {
 	panic(unsupportedApi("testing.RunExamples"))
 }
 
-func RunTests(matchString func(pat, str string) (bool, error), tests []InternalTest) (ok bool) {
+func RunTests(matchString func(pat, str string) (bool, error), tests []testing.InternalTest) (ok bool) {
 	panic(unsupportedApi("testing.RunTests"))
 }
 
@@ -42,8 +39,4 @@ func Verbose() bool {
 type M struct {}
 func (m *M) Run() (code int) {
 	panic("testing.M is not support in libFuzzer Mode")
-}
-type PB
-func (pb *PB) Next() bool {
-	panic("testing.PB is not supported in libFuzzer Mode")
 }

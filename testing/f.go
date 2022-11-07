@@ -4,13 +4,12 @@ import (
 	"fmt"
 	fuzz "github.com/AdaLogics/go-fuzz-headers"
 	"reflect"
-	"testing"
 )
 
 type F struct {
 	Data     []byte
-	T        *testing.T
-	FuzzFunc func(*testing.T, any)
+	T        *T
+	FuzzFunc func(*T, any)
 }
 
 func (f *F) Add(args ...any)                   {}
