@@ -28,9 +28,6 @@ var (
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
 		packages.NeedImports |
-		packages.NeedTypes |
-		packages.NeedTypesSizes |
-		packages.NeedTypesInfo |
 		packages.NeedSyntax |
 		packages.NeedModule
 )
