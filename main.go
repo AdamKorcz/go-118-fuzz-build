@@ -95,6 +95,12 @@ func main() {
 	if len(pkgs) != 1 {
 		log.Fatal("package path matched multiple packages")
 	}
+
+	err = rewriteTestingImports(pkgs)
+	if err != nil {
+		panic(err)
+	}
+
 	pkg := pkgs[0]
 
 	importPath := pkg.PkgPath
