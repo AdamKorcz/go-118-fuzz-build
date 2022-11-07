@@ -97,7 +97,7 @@ func main() {
 		log.Fatal("package path matched multiple packages")
 	}*/
 
-	err = rewriteTestingImports(pkgs, *flagFunc)
+	fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	if err != nil {
 		panic(err)
 	}
@@ -153,6 +153,17 @@ func main() {
 	if err := cmd.Run(); err != nil {
 		log.Fatal("failed to build packages:", err)
 	}
+
+	newFile, err := os.Create(fuzzerFile)
+	if err != nil {
+		panic(err)
+	}
+	defer newFile.Close()
+	_, err = newFile.Write(originalFuzzContents)
+	if err != nil {
+		panic(err)
+	}
+	os.Remove(fuzzerFile)
 }
 
 var mainTmpl = template.Must(template.New("main").Parse(`
