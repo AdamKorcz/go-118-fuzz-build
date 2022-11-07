@@ -27,9 +27,7 @@ var (
 	LoadMode = packages.NeedName |
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
-		packages.NeedImports |
-		packages.NeedSyntax |
-		packages.NeedModule
+		packages.NeedImports
 )
 
 func main() {
