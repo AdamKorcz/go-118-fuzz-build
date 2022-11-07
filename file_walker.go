@@ -54,7 +54,7 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 	return fuzzFilepath, originalFuzzContents, nil
 }
 
-func rewriteFuzzer(path, fuzzerName string) (string, []byte, error) {
+func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile []byte, err error) {
 	var fileHasOurHarness bool // to determine whether we should rewrite filename
 	fileHasOurHarness = false
 
@@ -93,7 +93,6 @@ func rewriteFuzzer(path, fuzzerName string) (string, []byte, error) {
 		var buf bytes.Buffer
 		printer.Fprint(&buf, fset, f)
 		
-		os.Remove(path)
 		newFile, err := os.Create(path+"_fuzz.go")
 		if err != nil {
 			panic(err)

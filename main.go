@@ -101,6 +101,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	os.Remove(fuzzerFile)
 
 	pkg := pkgs[0]
 
@@ -163,7 +164,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	os.Remove(fuzzerFile)
+	os.Remove(fuzzerFile+"_fuzz.go")
 }
 
 var mainTmpl = template.Must(template.New("main").Parse(`
