@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20220824214621-3c06a36a6952
-	golang.org/x/tools v0.2.0
+	golang.org/x/tools v0.1.13-0.20221007141809-02bef08ac854
 )
 
 require (
