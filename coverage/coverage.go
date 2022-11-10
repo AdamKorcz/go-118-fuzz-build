@@ -13,11 +13,41 @@ import (
 
 type Walker struct {
 	args []string
+	fuzzerName  string
+	fset  *token.FileSet
+	src  []byte // file contents
 }
 
 // Main walker func to traverse a fuzz harness when obtaining
 // the fuzzers args. Does not add the first add (t *testing.T)
 func (walker *Walker) Visit(node ast.Node) ast.Visitor {
+	if node == nil {
+		return walker
+	}
+	switch n := node.(type) {
+	case *ast.FuncDecl:
+		if n.Name.Name == walker.fuzzerName {
+			bw := &BodyWalker{
+				args: make([]string, 0),
+				fuzzerName: walker.fuzzerName,
+				fset: walker.fset,
+				src: walker.src,
+			}
+			ast.Walk(bw, n.Body)
+			walker.args = bw.args
+		}
+	}
+	return walker
+}
+
+type BodyWalker struct {
+	args []string
+	fuzzerName  string
+	fset  *token.FileSet
+	src  []byte // file contents
+}
+
+func (walker *BodyWalker) Visit(node ast.Node) ast.Visitor {
 	if node == nil {
 		return walker
 	}
@@ -39,7 +69,7 @@ func (walker *Walker) Visit(node ast.Node) ast.Visitor {
 }
 
 // Receives a list of *ast.Field and adds them to the walker
-func (walker *Walker) addArgs(n []*ast.Field) {
+func (walker *BodyWalker) addArgs(n []*ast.Field) {
 	for _, names := range n {
 		for _, _ = range names.Names {
 			if a, ok := names.Type.(*ast.ArrayType); ok {
@@ -51,7 +81,7 @@ func (walker *Walker) addArgs(n []*ast.Field) {
 	}
 }
 
-func (walker *Walker) addArg(arg string) {
+func (walker *BodyWalker) addArg(arg string) {
 	walker.args = append(walker.args, arg)
 }
 
@@ -60,7 +90,7 @@ func getArrayType(n *ast.ArrayType) string {
 	return fmt.Sprintf("[]%s", typeName)
 }
 
-func getFuzzArgs(fuzzerFileContents string) ([]string, error) {
+func getFuzzArgs(fuzzerFileContents, fuzzerName string) ([]string, error) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "fuzz_test.go", fuzzerFileContents, 0)
 	if err != nil {
@@ -68,6 +98,9 @@ func getFuzzArgs(fuzzerFileContents string) ([]string, error) {
 	}
 	w := &Walker{
 		args: []string{},
+		fuzzerName: fuzzerName,
+		fset: fset,
+		src: []byte(fuzzerFileContents),
 	}
 	ast.Walk(w, f)
 	return w.args, nil
@@ -79,8 +112,8 @@ func getFuzzArgs(fuzzerFileContents string) ([]string, error) {
 // obtained with os.ReadFile().
 // testCase: The libFuzzer testcase. This should also be obtained
 // with os.ReadFile().
-func ConvertLibfuzzerSeedToGoSeed(fuzzerFileContents []byte, testCase []byte) string {
-	args, err := getFuzzArgs(string(fuzzerFileContents))
+func ConvertLibfuzzerSeedToGoSeed(fuzzerFileContents, testCase []byte, fuzzerName string) string {
+	args, err := getFuzzArgs(string(fuzzerFileContents), fuzzerName)
 	if err != nil {
 		panic(err)
 	}
@@ -95,6 +128,7 @@ func libFuzzerSeedToGoSeed(testcase []byte, args []string) string {
 
 	fuzzConsumer := fuzz.NewConsumer(testcase)
 	for argNumber, arg := range args {
+		fmt.Println(argNumber)
 		switch arg {
 		case "[]uint8", "[]byte":
 			randBytes, err := fuzzConsumer.GetBytes()

@@ -27,7 +27,7 @@ func FuzzTest(f *testing.F) {
 )
 
 func TestGetFuzzArgs(t *testing.T) {
-	args, err := getFuzzArgs(fuzzer1)
+	args, err := getFuzzArgs(fuzzer1, "FuzzTest")
 	if err != nil {
 		t.Error(err)
 	}
