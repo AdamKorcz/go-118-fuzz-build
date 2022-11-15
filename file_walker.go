@@ -2,15 +2,15 @@ package main
 
 import (
 	"bytes"
-	"fmt"
+	//"fmt"
 	"go/ast"
-	"go/token"
 	"go/parser"
 	"go/printer"
+	"go/token"
 	"os"
 
-	"golang.org/x/tools/go/packages"
 	"golang.org/x/tools/go/ast/astutil"
+	"golang.org/x/tools/go/packages"
 )
 
 // rewriteTestingImports rewrites imports for:
@@ -23,7 +23,6 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 	var fuzzFilepath string
 	var originalFuzzContents []byte
 	originalFuzzContents = []byte("NONE")
-
 
 	// First find file with fuzz harness
 	for _, pkg := range pkgs {
@@ -88,12 +87,10 @@ func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile [
 
 	// Rewrite filename
 	if fileHasOurHarness {
-		fmt.Println("WWWWWWWWWWWWWWWWWWE HAVE OUR FUZZER")
-
 		var buf bytes.Buffer
 		printer.Fprint(&buf, fset, f)
-		
-		newFile, err := os.Create(path+"_fuzz.go")
+
+		newFile, err := os.Create(path + "_fuzz.go")
 		if err != nil {
 			panic(err)
 		}
