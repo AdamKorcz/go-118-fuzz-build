@@ -107,3 +107,7 @@ func (t *T) Skipped() bool {
 func (t *T) TempDir() string {
 	panic(unsupportedApi("t.TempDir()"))
 }
+func (t *T) private() {
+	// do nothing
+	// include to comply with *testing.TB as well
+}
