@@ -62,7 +62,7 @@ func (t *T) Fatalf(format string, args ...any) {
 	panic("fatal")
 }
 func (t *T) Helper() {
-	panic(unsupportedApi("t.Failed()"))
+	// We can't support it, but it also just impacts how failures are reported, so we can ignore it
 }
 func (t *T) Log(args ...any) {
 	fmt.Println(args...)
@@ -78,10 +78,10 @@ func (t *T) Name() string {
 }
 
 func (t *T) Parallel() {
-	panic(unsupportedApi("t.Failed()"))
+	panic(unsupportedApi("t.Parallel()"))
 }
 func (t *T) Run(name string, f func(t *T)) bool {
-	panic(unsupportedApi("t.Run()."))
+	panic(unsupportedApi("t.Run()"))
 }
 
 func (t *T) Setenv(key, value string) {
