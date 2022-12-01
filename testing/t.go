@@ -2,6 +2,7 @@ package testing
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 )
@@ -11,6 +12,12 @@ import (
 // panic with the text "GO-FUZZ-BUILD-PANIC" and the fuzzer
 // will recover.
 type T struct {
+	TempDirs []string
+}
+
+func NewT() *T {
+	tempDirs := make([]string, 0)
+	return &T{TempDirs: tempDirs}
 }
 
 func unsupportedApi(name string) string {
@@ -105,5 +112,19 @@ func (t *T) Skipped() bool {
 	panic(unsupportedApi("t.Skipped()"))
 }
 func (t *T) TempDir() string {
-	panic(unsupportedApi("t.TempDir()"))
+	dir, err := os.MkdirTemp("", "fuzzdir-")
+	if err != nil {
+		panic(err)
+	}
+	t.TempDirs = append(t.TempDirs, dir)
+
+	return dir
+}
+
+func (t *T) CleanupTempDirs() {
+	if len(t.TempDirs) > 0 {
+		for _, tempDir := range t.TempDirs {
+			os.RemoveAll(tempDir)
+		}
+	}
 }

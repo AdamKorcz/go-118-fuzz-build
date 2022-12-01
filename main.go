@@ -80,7 +80,7 @@ func main() {
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags,
-		Tests: true,
+		Tests:      true,
 	}, "pattern="+path)
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
@@ -159,7 +159,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	os.Remove(fuzzerFile+"_fuzz.go")
+	os.Remove(fuzzerFile + "_fuzz.go")
 }
 
 var mainTmpl = template.Must(template.New("main").Parse(`
@@ -190,7 +190,8 @@ func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
 }
 
 func LibFuzzer{{.Func}}(data []byte) int {
-	fuzzer := &testing.F{Data:data, T:&testing.T{}}
+	fuzzer := &testing.F{Data:data, T:testing.NewT()}
+	defer fuzzer.T.CleanupTempDirs()
 	target.{{.Func}}(fuzzer)
 	return 1
 }

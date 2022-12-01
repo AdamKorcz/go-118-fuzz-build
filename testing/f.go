@@ -173,10 +173,10 @@ func (f *F) Fuzz(ff any) {
 }
 func (f *F) Helper() {}
 func (c *F) Log(args ...any) {
-	fmt.Println(args)
+	fmt.Println(args...)
 }
 func (c *F) Logf(format string, args ...any) {
-	fmt.Println(format, args, "\n")
+	fmt.Println(format, args)
 }
 func (c *F) Name() string             { return "libFuzzer" }
 func (c *F) Setenv(key, value string) {}
