@@ -191,7 +191,7 @@ func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
 
 func LibFuzzer{{.Func}}(data []byte) int {
 	fuzzer := &testing.F{Data:data, T:testing.NewT()}
-	defer fuzzer.T.CleanupTempDirs()
+	defer fuzzer.CleanupTempDirs()
 	target.{{.Func}}(fuzzer)
 	return 1
 }
