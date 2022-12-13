@@ -18,11 +18,12 @@ var (
 	flagO    = flag.String("o", "", "output file")
 	flagPath = flag.String("abs_path", "", "absolute path to fuzzer")
 
-	flagRace = flag.Bool("race", false, "enable data race detection")
-	flagTags = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
-	flagV    = flag.Bool("v", false, "print the names of packages as they are compiled")
-	flagWork = flag.Bool("work", false, "print the name of the temporary work directory and do not remove it when exiting")
-	flagX    = flag.Bool("x", false, "print the commands")
+	flagRace    = flag.Bool("race", false, "enable data race detection")
+	flagTags    = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
+	flagV       = flag.Bool("v", false, "print the names of packages as they are compiled")
+	flagWork    = flag.Bool("work", false, "print the name of the temporary work directory and do not remove it when exiting")
+	flagX       = flag.Bool("x", false, "print the commands")
+	flagOverlay = flag.String("overlay", "", "JSON config file that provides an overlay for build operations")
 
 	LoadMode = packages.NeedName |
 		packages.NeedFiles |
@@ -139,6 +140,9 @@ func main() {
 	}
 
 	args := []string{"build", "-o", out}
+	if *flagOverlay != "" {
+		buildFlags = append(buildFlags, "-overlay", *flagOverlay)
+	}
 	args = append(args, buildFlags...)
 	args = append(args, mainFile.Name())
 	cmd := exec.Command("go", args...)
