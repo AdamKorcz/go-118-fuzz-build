@@ -42,8 +42,7 @@ func (t *T) Error(args ...any) {
 }
 
 func (t *T) Errorf(format string, args ...any) {
-	fmt.Println(format)
-	fmt.Println(args...)
+	fmt.Printf(format+"\n", args...)
 	panic("errorf")
 }
 
@@ -65,7 +64,7 @@ func (t *T) Fatal(args ...any) {
 	panic("fatal")
 }
 func (t *T) Fatalf(format string, args ...any) {
-	fmt.Println(format, args)
+	fmt.Printf(format+"\n", args...)
 	panic("fatal")
 }
 func (t *T) Helper() {
