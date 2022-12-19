@@ -6,7 +6,14 @@ Go-118-fuzz-build is a tool to compile native Golang fuzzers to libFuzzer fuzzer
 
 While it is not necessary to run Go-118-fuzz-build in a container, it is recommended, since it will change the source code of the project being built. See THIS_SECTION for an explanation on how it changes the project.
 
-### Workflow
+## Table of contents
+- [Workflow](https://github.com/AdamKorcz/go-118-fuzz-build#workflow)
+- [Goals of Go-118-fuzz-build](https://github.com/AdamKorcz/go-118-fuzz-build#goals-of-go-118-fuzz-build)
+- [To-Dos](https://github.com/AdamKorcz/go-118-fuzz-build#to-dos)
+- [Dependencies](https://github.com/AdamKorcz/go-118-fuzz-build#dependencies)
+- [How to use](https://github.com/AdamKorcz/go-118-fuzz-build#how-to-use)
+
+## Workflow
 
 Say we have a native Go fuzz harness as such that we want to build as a libFuzzer fuzzer:
 ```go
@@ -137,7 +144,7 @@ When you then run `go mod tidy`, Go will handle the dependencies.
 
 Here we enumerate common ways to use go-118-fuzz-build.
 
-#### Preparation
+### Preparation
 Any usage requires the go-118-fuzz-build binary:
 
 ```bash
@@ -149,7 +156,7 @@ mv go-118-fuzz-build $GOPATH/bin/ # or add to $PATH instead
 
 With that, let's discover some ways to use the tool:
 
-#### The easy
+### The easy
 A simple fuzzer can be built like this:
 
 ```bash
