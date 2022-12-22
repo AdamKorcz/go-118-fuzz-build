@@ -1,6 +1,6 @@
 # Go-118-fuzz-build
 
-![What can you do](https://adalogics.com/static/img/content/go-118-fuzz-build.gif)
+![What can you do](https://adalogics.com/static/img/content/go-118-fuzz-build-compressed.gif)
 
 Go-118-fuzz-build is a tool to compile native Golang fuzzers to libFuzzer fuzzers. The tool was initially developed because continuous and CI fuzzing providers have developed platforms that depend on features in fuzzing engines that the native Go engine was not released with. To accomodate this, Go-118-fuzz-build changes the fuzz harnesses into libFuzzer harnesses that can then be intrumented with libFuzzer.
 
