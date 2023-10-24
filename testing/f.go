@@ -104,7 +104,7 @@ func (f *F) Fuzz(ff any) {
 				return
 			}
 			newUint := reflect.New(v)
-			newUint.Elem().SetUint(uint64(randInt))
+			newUint.Elem().SetUint(uint64(uint(randInt)))
 			args = append(args, newUint.Elem())
 		case "uint8":
 			randInt, err := fuzzConsumer.GetByte()
