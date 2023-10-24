@@ -171,17 +171,17 @@ func (f *F) Fuzz(ff any) {
 			newBool.Elem().Set(reflect.ValueOf(randBool))
 			args = append(args, newBool.Elem())
 		default:
-			fmt.Println(v.String())
+			panic(fmt.Sprintf("unsupported type: %s", v.String()))
 		}
 	}
 	fn.Call(args)
 }
 func (f *F) Helper() {}
 func (c *F) Log(args ...any) {
-	fmt.Println(args...)
+	fmt.Print(args...)
 }
 func (c *F) Logf(format string, args ...any) {
-	fmt.Println(format, args)
+	fmt.Printf(format, args)
 }
 func (c *F) Name() string             { return "libFuzzer" }
 func (c *F) Setenv(key, value string) {}
