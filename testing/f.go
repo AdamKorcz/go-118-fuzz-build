@@ -181,7 +181,7 @@ func (c *F) Log(args ...any) {
 	fmt.Print(args...)
 }
 func (c *F) Logf(format string, args ...any) {
-	fmt.Printf(format, args)
+	fmt.Println(fmt.Sprintf(format, args...))
 }
 func (c *F) Name() string             { return "libFuzzer" }
 func (c *F) Setenv(key, value string) {}
