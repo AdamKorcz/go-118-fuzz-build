@@ -12,10 +12,10 @@ import (
 )
 
 type Walker struct {
-	args []string
-	fuzzerName  string
-	fset  *token.FileSet
-	src  []byte // file contents
+	args       []string
+	fuzzerName string
+	fset       *token.FileSet
+	src        []byte // file contents
 }
 
 // Main walker func to traverse a fuzz harness when obtaining
@@ -28,10 +28,10 @@ func (walker *Walker) Visit(node ast.Node) ast.Visitor {
 	case *ast.FuncDecl:
 		if n.Name.Name == walker.fuzzerName {
 			bw := &BodyWalker{
-				args: make([]string, 0),
+				args:       make([]string, 0),
 				fuzzerName: walker.fuzzerName,
-				fset: walker.fset,
-				src: walker.src,
+				fset:       walker.fset,
+				src:        walker.src,
 			}
 			ast.Walk(bw, n.Body)
 			walker.args = bw.args
@@ -41,10 +41,10 @@ func (walker *Walker) Visit(node ast.Node) ast.Visitor {
 }
 
 type BodyWalker struct {
-	args []string
-	fuzzerName  string
-	fset  *token.FileSet
-	src  []byte // file contents
+	args       []string
+	fuzzerName string
+	fset       *token.FileSet
+	src        []byte // file contents
 }
 
 func (walker *BodyWalker) Visit(node ast.Node) ast.Visitor {
@@ -97,10 +97,10 @@ func getFuzzArgs(fuzzerFileContents, fuzzerName string) ([]string, error) {
 		panic(err)
 	}
 	w := &Walker{
-		args: []string{},
+		args:       []string{},
 		fuzzerName: fuzzerName,
-		fset: fset,
-		src: []byte(fuzzerFileContents),
+		fset:       fset,
+		src:        []byte(fuzzerFileContents),
 	}
 	ast.Walk(w, f)
 	return w.args, nil
@@ -148,57 +148,58 @@ func libFuzzerSeedToGoSeed(testcase []byte, args []string) string {
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
+			fmt.Printf("string: %v\n", s)
 		case "int":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("int(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("int(%s)", strconv.Itoa(int(randInt))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
 		case "int8":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetByte()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("int8(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("int8(%s)", strconv.Itoa(int(int8(randInt)))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
 		case "int16":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetUint16()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("int16(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("int16(%s)", strconv.Itoa(int(int16(randInt)))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
 		case "int32":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetUint32()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("int32(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("int32(%s)", strconv.Itoa(int(int32(randInt)))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
 		case "int64":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("int64(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("int64(%s)", strconv.Itoa(int(int64(randInt)))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
 		case "uint":
-			randInt, err := fuzzConsumer.GetInt()
+			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
 				panic(err)
 			}
-			b.WriteString(fmt.Sprintf("uint(%s)", strconv.Itoa(randInt)))
+			b.WriteString(fmt.Sprintf("uint(%s)", strconv.Itoa(int(uint(randInt)))))
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
