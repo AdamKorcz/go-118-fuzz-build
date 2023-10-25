@@ -48,7 +48,7 @@ func TestFuzz(t *testing.T) {
 		f uint, g uint8, h uint16, i uint32, j uint64,
 		k string, l []byte,
 		m float64, n float32, o bool, p rune) {
-		have = fmt.Sprint(a, b, c, d, e, f, g, h, i, j, m, n, o, p)
+		have = fmt.Sprint(a, b, c, d, e, f, g, h, i, j, k, string(l), m, n, o, p)
 	}
 
 	f := new(F)
@@ -78,7 +78,7 @@ func TestFuzz(t *testing.T) {
 
 	f.Data = input
 	f.Fuzz(fuzzFunc)
-	want := "-1 -1 -1 -1 -1 1234605616150177399 17 8755 1146447479 1234605616150177399 1.1337 3.14159 true 3"
+	want := "-1 -1 -1 -1 -1 1234605616150177399 17 8755 1146447479 1234605616150177399string\x00oll\nkorrektbytes\x00oll\nkorrekt1.1337 3.14159 true 3"
 	if have != want {
 		t.Fatalf("result wrong\nhave %q\nwant %q", have, want)
 	}
