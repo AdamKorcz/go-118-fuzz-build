@@ -2,7 +2,7 @@ package coverage
 
 import (
 	"encoding/binary"
-	"fmt"
+	"math"
 	"testing"
 )
 
@@ -24,7 +24,8 @@ func FuzzTest2(f *testing.F) {
 	f.Fuzz(func(t *testing.T, 
 		a int, b int8, c int16, d int32, e int64, 
 		f uint, g uint8, h uint16, i uint32, j uint64,
-		foo string){
+		foo string, bar []byte,
+		f1 float64, f2 float32, bb bool, rr rune){
 		fmt.Println("HERE")
 	})
 }
@@ -60,7 +61,13 @@ func addU16(input []byte, i uint64) []byte {
 
 func addU32(input []byte, i uint64) []byte {
 	input = binary.BigEndian.AppendUint32(input, uint32(i))
-	// U32 doesn't use endianness boolean!
+	// U32 doesn't use endianness boolean! (but when used for float32, it does, sigh)
+	return input
+}
+
+func addF32(input []byte, f float32) []byte {
+	input = binary.BigEndian.AppendUint32(input, uint32(math.Float32bits(f)))
+	input = append(input, 1) // endianness boolean
 	return input
 }
 
@@ -97,7 +104,9 @@ func TestGetFuzzArgs2(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	for i, want := range []string{"int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64", "string"} {
+	for i, want := range []string{"int", "int8", "int16", "int32", "int64", "uint",
+		"uint8", "uint16", "uint32", "uint64", "string", "[]byte", "float64", "float32",
+		"bool", "rune"} {
 		if have := args[i]; have != want {
 			t.Errorf("args[%d] wrong: have %q want %q", i, have, want)
 		}
@@ -108,7 +117,6 @@ func TestGetFuzzArgs2(t *testing.T) {
 	input = addU16(input, uint64(int16(v))) // int16
 	input = addU32(input, uint64(int32(v))) // int32
 	input = addU64(input, uint64(int64(v))) // int64
-	fmt.Printf("input:%x\n", input)         // ffffffffffffffff01
 
 	input = addU64(input, uint64(0x1122_3344_4455_6677)) // uint
 	input = append(input, 0x11)                          // uint8
@@ -116,7 +124,16 @@ func TestGetFuzzArgs2(t *testing.T) {
 	input = addU32(input, uint64(uint32(0x4455_6677)))   // uint32
 	input = addU64(input, uint64(0x1122_3344_4455_6677)) // uint64
 
-	input = addString(input, "oll korrekt")
+	input = addString(input, "string\x00oll\nkorrekt")
+	input = addBytes(input, []byte("bytes\x00oll\nkorrekt"))
+
+	input = addU64(input, math.Float64bits(1.1337)) // float64
+	input = addF32(input, float32(3.14159))         // float32
+
+	input = append(input, 0) // boolean true
+	// Note: the fuzzer doesn't treat runes correctly, instead of a rune being a
+	// rune, it treats them as strings.
+	input = addString(input, string([]rune{rune('Ⅷ')})) // rune
 
 	have := libFuzzerSeedToGoSeed(input, args)
 	want := `go test fuzz v1
@@ -130,7 +147,12 @@ uint8(17)
 uint16(8755)
 uint32(1146447479)
 uint64(1234605616150177399)
-string("oll korrekt")`
+string("string\x00oll\nkorrekt")
+[]byte("bytes\x00oll\nkorrekt")
+float64(1.133700)
+float32(3.141590)
+bool(true)
+rune("Ⅷ")`
 
 	if have != want {
 		t.Logf("have\n%v\nwant\n%v\n", have, want)
