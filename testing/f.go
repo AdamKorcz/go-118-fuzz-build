@@ -41,6 +41,7 @@ func (f *F) Fuzz(ff any) {
 	args := []reflect.Value{reflect.ValueOf(f.T)}
 	fuzzConsumer := fuzz.NewConsumer(f.Data)
 	for _, v := range types {
+		//fmt.Printf("arg %v\n", v)
 		switch v.String() {
 		case "[]uint8":
 			b, err := fuzzConsumer.GetBytes()
