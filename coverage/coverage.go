@@ -148,7 +148,6 @@ func libFuzzerSeedToGoSeed(testcase []byte, args []string) string {
 			if argNumber != len(args)-1 {
 				b.WriteString("\n")
 			}
-			fmt.Printf("string: %v\n", s)
 		case "int":
 			randInt, err := fuzzConsumer.GetUint64()
 			if err != nil {
