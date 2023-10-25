@@ -10,40 +10,34 @@ import (
 // addString adds a string to the input vector corresponding to consumer.go @ go-fuzz-headers
 func addString(input []byte, s string) []byte {
 	input = binary.BigEndian.AppendUint32(input, uint32(len(s))) // Add a uint32 length
-	input = append(input, []byte(s)...)                          // Add string
-	return input
+	return append(input, []byte(s)...)                           // Add string
 }
 
 // addBytes adds a []byte to the input vector corresponding to consumer.go @ go-fuzz-headers
 func addBytes(input []byte, data []byte) []byte {
 	input = binary.BigEndian.AppendUint32(input, uint32(len(data))) // Add a uint32 length
-	input = append(input, data...)                                  // Add string
-	return input
+	return append(input, data...)                                   // Add string
 }
 
 // addU64 adds a uint64 to the input vector corresponding to consumer.go @ go-fuzz-headers
 func addU64(input []byte, i uint64) []byte {
 	input = binary.BigEndian.AppendUint64(input, i)
-	input = append(input, 1) // endianness boolean
-	return input
+	return append(input, 1) // endianness booleans
 }
 
 func addU16(input []byte, i uint64) []byte {
 	input = binary.BigEndian.AppendUint16(input, uint16(i))
-	input = append(input, 1) // endianness boolean
-	return input
+	return append(input, 1) // endianness boolean
 }
 
 func addU32(input []byte, i uint64) []byte {
-	input = binary.BigEndian.AppendUint32(input, uint32(i))
 	// U32 doesn't use endianness boolean! (but when used for float32, it does, sigh)
-	return input
+	return binary.BigEndian.AppendUint32(input, uint32(i))
 }
 
 func addF32(input []byte, f float32) []byte {
 	input = binary.BigEndian.AppendUint32(input, uint32(math.Float32bits(f)))
-	input = append(input, 1) // endianness boolean
-	return input
+	return append(input, 1) // endianness boolean
 }
 
 func TestFuzz(t *testing.T) {
