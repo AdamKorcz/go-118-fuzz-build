@@ -1,35 +1,10 @@
-package coverage
+package testing
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"testing"
-)
-
-var (
-	fuzzer1 = `package fuzzpackage
-
-import (
-	"fmt"
-	"testing"
-)
-
-func FuzzTest(f *testing.F) {
-	f.Fuzz(func(t *testing.T, data1, data2 string, in int, data3 []byte) {
-		fmt.Println("HERE")
-	})
-}
-
-func FuzzTest2(f *testing.F) {
-	f.Fuzz(func(t *testing.T, 
-		a int, b int8, c int16, d int32, e int64, 
-		f uint, g uint8, h uint16, i uint32, j uint64,
-		foo string, bar []byte,
-		f1 float64, f2 float32, bb bool, rr rune){
-		fmt.Println("HERE")
-	})
-}
-`
 )
 
 // addString adds a string to the input vector corresponding to consumer.go @ go-fuzz-headers
@@ -65,46 +40,18 @@ func addF32(input []byte, f float32) []byte {
 	return append(input, 1) // endianness boolean
 }
 
-func TestGetFuzzArgs(t *testing.T) {
-	args, err := getFuzzArgs(fuzzer1, "FuzzTest")
-	if err != nil {
-		t.Error(err)
-	}
-	for i, want := range []string{"string", "string", "int", "[]byte"} {
-		if have := args[i]; have != want {
-			t.Errorf("args[%d] wrong: have %q want %q", i, have, want)
-		}
-	}
-	input := addString(nil, "ADAM1")
-	input = addString(input, "ADAM")
-	input = addU64(input, 1)
-	input = addBytes(input, []byte("AB"))
+func TestFuzz(t *testing.T) {
+	var have string = "not invoked"
 
-	have := libFuzzerSeedToGoSeed(input, args)
-	want := `go test fuzz v1
-string("ADAM1")
-string("ADAM")
-int(1)
-[]byte("AB")`
+	fuzzFunc := func(t *T,
+		a int, b int8, c int16, d int32, e int64,
+		f uint, g uint8, h uint16, i uint32, j uint64,
+		k string, l []byte,
+		m float64, n float32, o bool, p rune) {
+		have = fmt.Sprint(a, b, c, d, e, f, g, h, i, j, k, string(l), m, n, o, p)
+	}
 
-	if have != want {
-		t.Logf("have\n%v\nwant\n%v\n", have, want)
-		t.Error("Failed testcase conversion")
-	}
-}
-
-func TestGetFuzzArgs2(t *testing.T) {
-	args, err := getFuzzArgs(fuzzer1, "FuzzTest2")
-	if err != nil {
-		t.Error(err)
-	}
-	for i, want := range []string{"int", "int8", "int16", "int32", "int64", "uint",
-		"uint8", "uint16", "uint32", "uint64", "string", "[]byte", "float64", "float32",
-		"bool", "rune"} {
-		if have := args[i]; have != want {
-			t.Errorf("args[%d] wrong: have %q want %q", i, have, want)
-		}
-	}
+	f := new(F)
 	var v int64 = -1
 	input := addU64(nil, uint64(v))         // int
 	input = append(input, byte(int8(v)))    // int8
@@ -129,27 +76,10 @@ func TestGetFuzzArgs2(t *testing.T) {
 	// rune, it treats them as strings.
 	input = addString(input, string([]rune{rune('Ⅷ')})) // rune
 
-	have := libFuzzerSeedToGoSeed(input, args)
-	want := `go test fuzz v1
-int(-1)
-int8(-1)
-int16(-1)
-int32(-1)
-int64(-1)
-uint(1234605616150177399)
-uint8(17)
-uint16(8755)
-uint32(1146447479)
-uint64(1234605616150177399)
-string("string\x00oll\nkorrekt")
-[]byte("bytes\x00oll\nkorrekt")
-float64(1.133700)
-float32(3.141590)
-bool(true)
-rune("Ⅷ")`
-
+	f.Data = input
+	f.Fuzz(fuzzFunc)
+	want := "-1 -1 -1 -1 -1 1234605616150177399 17 8755 1146447479 1234605616150177399string\x00oll\nkorrektbytes\x00oll\nkorrekt1.1337 3.14159 true 3"
 	if have != want {
-		t.Logf("have\n%v\nwant\n%v\n", have, want)
-		t.Error("Failed testcase conversion")
+		t.Fatalf("result wrong\nhave %q\nwant %q", have, want)
 	}
 }

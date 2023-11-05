@@ -3,7 +3,7 @@ module github.com/AdamKorcz/go-118-fuzz-build
 go 1.18
 
 require (
-	github.com/AdaLogics/go-fuzz-headers v0.0.0-20221206110420-d395f97c4830
+	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
 	golang.org/x/tools v0.2.0
 )
 
