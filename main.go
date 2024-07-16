@@ -32,7 +32,9 @@ var (
 		packages.NeedFiles |
 		packages.NeedCompiledGoFiles |
 		packages.NeedImports |
-		packages.NeedDeps
+		packages.NeedDeps |
+		packages.NeedTypes |
+		packages.NeedModule
 )
 
 var include, ignore []string

@@ -4,11 +4,11 @@ go 1.18
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
-	golang.org/x/tools v0.2.0
+	github.com/google/go-cmp v0.6.0
+	golang.org/x/tools v0.23.0
 )
 
 require (
-	github.com/cyphar/filepath-securejoin v0.2.3 // indirect
-	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/sys v0.2.0 // indirect
+	golang.org/x/mod v0.19.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 )

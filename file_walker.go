@@ -2,15 +2,29 @@ package main
 
 import (
 	"bytes"
-	//"fmt"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/packages"
+)
+
+var (
+	customTestingName = "customFuzzTestingPkg"
+
+	buildFlags2 = []string{
+		"-buildmode", "c-archive",
+		"-trimpath",
+		"-gcflags", "all=-d=libfuzzer",
+	}
+
+	stdLibPkgs = []string{"testing", "os", "reflect", "math/rand", "testing/internal/testdeps"}
 )
 
 // rewriteTestingImports rewrites imports for:
@@ -139,19 +153,132 @@ func rewriteImportTesting(pkg *packages.Package) bool {
 }
 
 // Checks whether a fuzz test exists in a given file
-func rewriteFuzzerImports(path, fuzzName string) error {
+func rewriteTestingFFunctionParams(path string) error {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
 		return err
 	}
+	update := false
 	for _, decl := range f.Decls {
-		if _, ok := decl.(*ast.FuncDecl); ok {
-			if decl.(*ast.FuncDecl).Name.Name == fuzzName {
-				// First rewrite testing.F
-
+		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
+			for _, param := range funcDecl.Type.Params.List {
+				fmt.Println(param.Names)
+				if paramType, ok := param.Type.(*ast.StarExpr); ok {
+					if p2, ok := paramType.X.(*ast.SelectorExpr); ok {
+						if p3, ok := p2.X.(*ast.Ident); ok {
+							if p3.Name == "testing" && p2.Sel.Name == "F" {
+								p3.Name = customTestingName
+								update = true
+							}
+						}
+					}
+				}
 			}
 		}
 	}
+	if update {
+		var buf bytes.Buffer
+		printer.Fprint(&buf, fset, f)
+
+		newFile, err := os.Create(path)
+		if err != nil {
+			panic(err)
+		}
+		defer newFile.Close()
+		newFile.Write(buf.Bytes())
+	}
 	return nil
+}
+
+func GetAllSourceFilesOfFile(filePath string) ([]string, error) {
+	files := make([]string, 0)
+	pkgs, err := getAllPackagesOfFile(filePath)
+	if err != nil {
+		return files, err
+	}
+	for _, pkg := range pkgs {
+		for _, file := range pkg.GoFiles {
+			// There may be compiled files in the go cache. Ignore those
+			if strings.Contains(file, "/.cache/") {
+				continue
+			}
+			files = append(files, file)
+		}
+	}
+	return files, nil
+}
+
+func getAllPackagesOfFile(filePath string) ([]*packages.Package, error) {
+	pkgs, err := packages.Load(&packages.Config{
+		Mode:       LoadMode,
+		BuildFlags: buildFlags2,
+		Tests:      true,
+	}, "file="+filePath)
+	if err != nil {
+		return pkgs, err
+	}
+	err = os.Chdir(filepath.Dir(filePath))
+	if err != nil {
+		return pkgs, err
+	}
+	// There should only be one file
+	if len(pkgs) != 1 {
+		panic("there should only be one file here")
+	}
+	return appendPkgImports(pkgs[0], pkgs)
+}
+
+func appendPkgImports(pkg *packages.Package, pkgs []*packages.Package) ([]*packages.Package, error) {
+	pkgsCopy := pkgs
+	for _, imp := range pkg.Imports {
+		if isStdLibPkg(imp.PkgPath) {
+			continue
+		}
+		p, err := loadPkg(imp.PkgPath)
+		if err != nil {
+			return pkgsCopy, err
+		}
+		for _, pack := range p {
+			if pkgInPkgs(pack.PkgPath, pkgsCopy) {
+				continue
+			}
+			pkgsCopy = append(pkgsCopy, pack)
+			pkgsCopy, err = appendPkgImports(pack, pkgsCopy)
+			if err != nil {
+				return pkgsCopy, err
+			}
+		}
+	}
+	return pkgsCopy, nil
+}
+
+func loadPkg(path string) ([]*packages.Package, error) {
+	pkgs, err := packages.Load(&packages.Config{
+		Mode:       LoadMode,
+		BuildFlags: buildFlags2,
+		Tests:      true,
+	}, path)
+	if err != nil {
+		return pkgs, err
+	}
+	return pkgs, nil
+}
+
+func pkgInPkgs(importPath string, pkgs []*packages.Package) bool {
+	for _, pkg := range pkgs {
+		if strings.EqualFold(pkg.PkgPath, importPath) {
+			return true
+		}
+	}
+	return false
+}
+
+func isStdLibPkg(importName string) bool {
+	for _, stdLibPkg := range stdLibPkgs {
+		if strings.EqualFold(importName, stdLibPkg) {
+			return true
+		}
+	}
+	return false
 }
