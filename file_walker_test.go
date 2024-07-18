@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/docker/docker/daemon/graphdriver/copy"
 )
 
 func TestRewriteFuncTestingFParams(t *testing.T) {
@@ -80,5 +81,55 @@ func TestGetAllSourceFilesOfFile(t *testing.T) {
 	}
 	if filepath.Base(files[3]) != "one_test.go" {
 		t.Error("files[3] should be 'one_test.go'")
+	}
+}
+
+func TestRenameAllTestFiles(t *testing.T) {
+	tempDir := t.TempDir()
+	err := copy.DirCopy(filepath.Join("testdata", "module1"),
+						filepath.Join(tempDir, "module1"),
+						copy.Content,
+						false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := GetAllSourceFilesOfFile(filepath.Join(tempDir, "module1", "fuzz_test.go"))
+	if err != nil {
+		t.Fatalf("failed to load packages: %s", err)
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "fuzz_test.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one_test.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule2", "test_one.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = files
+	RewriteAllImportedTestFiles(files)
+
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go"))
+	if err != nil {
+		t.Error("Did not rewrite module1/fuzz_test.go")
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go"))
+	if err != nil {
+		t.Fatal("Did not rewrite module1/submodule1/one_test.go")
+	}
+	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule2", "test_one.go"))
+	if err != nil {
+		t.Fatal(err)
 	}
 }

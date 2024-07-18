@@ -191,6 +191,20 @@ func rewriteTestingFFunctionParams(path string) error {
 	return nil
 }
 
+func RewriteAllImportedTestFiles(files []string) error {
+	for _, file := range files {
+		if file[len(file)-8:] == "_test.go" {
+			newName := strings.TrimSuffix(file, "_test.go")+"_libFuzzer.go"
+			err := os.Rename(file, newName)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+/* Gets a list of files that are imported by a file */
 func GetAllSourceFilesOfFile(filePath string) ([]string, error) {
 	files := make([]string, 0)
 	pkgs, err := getAllPackagesOfFile(filePath)
