@@ -27,6 +27,18 @@ var (
 	stdLibPkgs = []string{"testing", "os", "reflect", "math/rand", "testing/internal/testdeps"}
 )
 
+type FileWalker struct {
+	renamedFiles map[string]string
+}
+
+func NewFileWalker() *FileWalker {
+	return &FileWalker {
+		renamedFiles: make(map[string]string),
+	}
+}
+
+
+
 // rewriteTestingImports rewrites imports for:
 // - all package files
 // - the fuzzer
@@ -191,7 +203,7 @@ func rewriteTestingFFunctionParams(path string) error {
 	return nil
 }
 
-func RewriteAllImportedTestFiles(files []string) error {
+func (walker *FileWalker) RewriteAllImportedTestFiles(files []string) error {
 	for _, file := range files {
 		if file[len(file)-8:] == "_test.go" {
 			newName := strings.TrimSuffix(file, "_test.go")+"_libFuzzer.go"
@@ -199,9 +211,17 @@ func RewriteAllImportedTestFiles(files []string) error {
 			if err != nil {
 				return err
 			}
+			walker.addRenamedFile(file, newName)
 		}
 	}
 	return nil
+}
+
+func (walker *FileWalker) addRenamedFile(oldPath, newPath string) {
+	if _, ok := walker.renamedFiles[oldPath]; ok {
+		panic("The file already exists which it shouldn't")
+	}
+	walker.renamedFiles[oldPath] = newPath
 }
 
 /* Gets a list of files that are imported by a file */

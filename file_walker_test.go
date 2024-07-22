@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,8 +114,8 @@ func TestRenameAllTestFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_ = files
-	RewriteAllImportedTestFiles(files)
+	walker := NewFileWalker()
+	walker.RewriteAllImportedTestFiles(files)
 
 	_, err = os.Stat(filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go"))
 	if err != nil {
@@ -131,5 +132,22 @@ func TestRenameAllTestFiles(t *testing.T) {
 	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule2", "test_one.go"))
 	if err != nil {
 		t.Fatal(err)
+	}
+	
+	fmt.Println(walker.renamedFiles)
+	if len(walker.renamedFiles) != 2 {
+		t.Error("There should be two rewrites")
+	}
+
+	if fuzzTest, ok := walker.renamedFiles[filepath.Join(tempDir, "module1", "fuzz_test.go")]; ok {
+		if fuzzTest != filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go") {
+			t.Errorf("Path is %s but should be %s", fuzzTest, filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go"))
+		}
+	}
+
+	if oneTest, ok := walker.renamedFiles[filepath.Join(tempDir, "module1", "submodule1", "one_test.go")]; ok {
+		if oneTest != filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go") {
+			t.Errorf("Path is %s but should be %s", oneTest, filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go"))
+		}
 	}
 }
