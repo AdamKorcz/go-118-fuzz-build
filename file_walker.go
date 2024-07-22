@@ -29,11 +29,13 @@ var (
 
 type FileWalker struct {
 	renamedFiles map[string]string
+	rewrittenFiles []string
 }
 
 func NewFileWalker() *FileWalker {
 	return &FileWalker {
 		renamedFiles: make(map[string]string),
+		rewrittenFiles: make([]string, 0),
 	}
 }
 
@@ -76,6 +78,15 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 		}
 	}
 	return fuzzFilepath, originalFuzzContents, nil
+}
+
+func stringInSlice(a string, list []string) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
 }
 
 func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile []byte, err error) {
@@ -164,7 +175,7 @@ func rewriteImportTesting(pkg *packages.Package) bool {
 }
 
 // Checks whether a fuzz test exists in a given file
-func rewriteTestingFFunctionParams(path string) error {
+func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
@@ -198,6 +209,11 @@ func rewriteTestingFFunctionParams(path string) error {
 		}
 		defer newFile.Close()
 		newFile.Write(buf.Bytes())
+
+		if stringInSlice(path, walker.rewrittenFiles) {
+			panic("This file is already rewritten. This is a bug")
+		}
+		walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 	}
 	return nil
 }

@@ -32,14 +32,23 @@ func ourTestHelper(f *customFuzzTestingPkg.F) {
 	err := os.WriteFile(file, []byte(fileContents), 0o600)
 	if err != nil {
 		t.Fatal(err)
-	}
-	rewriteTestingFFunctionParams(file)
+	}	
+	walker := NewFileWalker()
+	walker.rewriteTestingFFunctionParams(file)
 	gotFileContents, err := os.ReadFile(file)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(gotFileContents, []byte(expectedFileContents)) {
 		t.Errorf("%s", cmp.Diff(gotFileContents, []byte(expectedFileContents)))
+	}
+
+	if len(walker.rewrittenFiles) != 1 {
+		t.Errorf("Should only have rewritten one file")
+	}
+
+	if !stringInSlice(file, walker.rewrittenFiles) {
+		t.Errorf("The rewritten file %s should be stored in the walker but is not.", file)
 	}
 }
 
