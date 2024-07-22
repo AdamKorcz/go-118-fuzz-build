@@ -163,6 +163,50 @@ func rewriteTestingImport(path string) error {
 	return nil
 }
 
+// Rewrites testing import of a single path
+func (walker *FileWalker) addShimImport(path string) error {
+	//fmt.Println("Rewriting ", path)
+	fset := token.NewFileSet()
+	fCheck, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+	if err != nil {
+		return err
+	}
+
+	// First check if the import already exists
+	// Return if it does.
+	for _, imp := range fCheck.Imports {
+		if imp.Path.Value == "github.com/AdamKorcz/go-118-fuzz-build/testing" {
+			return nil
+		}
+	}
+
+	// Replace import path
+	astutil.DeleteImport(fset, fCheck, "testing")
+	astutil.AddNamedImport(fset,
+						   fCheck,
+						   "_",
+						   "testing")
+	astutil.AddNamedImport(fset,
+						   fCheck,
+						   customTestingName,
+						   "github.com/AdamKorcz/go-118-fuzz-build/testing")
+	var buf bytes.Buffer
+	printer.Fprint(&buf, fset, fCheck)
+
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	f.WriteString(string(buf.Bytes()))
+
+	if stringInSlice(path, walker.rewrittenFiles) {
+		panic("This file is already rewritten. This is a bug")
+	}
+	walker.rewrittenFiles = append(walker.rewrittenFiles, path)
+	return nil
+}
+
 // Rewrites testing import of a package
 func rewriteImportTesting(pkg *packages.Package) bool {
 	for _, file := range pkg.GoFiles {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -41,6 +42,45 @@ func ourTestHelper(f *customFuzzTestingPkg.F) {
 	}
 	if !bytes.Equal(gotFileContents, []byte(expectedFileContents)) {
 		t.Errorf("%s", cmp.Diff(gotFileContents, []byte(expectedFileContents)))
+	}
+
+	if len(walker.rewrittenFiles) != 1 {
+		t.Errorf("Should only have rewritten one file")
+	}
+
+	if !stringInSlice(file, walker.rewrittenFiles) {
+		t.Errorf("The rewritten file %s should be stored in the walker but is not.", file)
+	}
+}
+
+func TestAddShimImport(t *testing.T) {
+	fileContents := `package main
+import (
+	"testing"
+)`
+	expectedFileContents := `package main
+
+import (
+	_ "testing"
+	customFuzzTestingPkg "github.com/AdamKorcz/go-118-fuzz-build/testing"
+)
+`
+	file := filepath.Join(t.TempDir(), "file.go")
+	err := os.WriteFile(file, []byte(fileContents), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	walker := NewFileWalker()
+	err = walker.addShimImport(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotFileContents, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.EqualFold(string(gotFileContents), expectedFileContents) {
+		t.Errorf("%s", cmp.Diff(string(gotFileContents), expectedFileContents))
 	}
 
 	if len(walker.rewrittenFiles) != 1 {
