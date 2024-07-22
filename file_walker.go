@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/printer"
@@ -200,10 +199,9 @@ func (walker *FileWalker) addShimImport(path string) error {
 	defer f.Close()
 	f.WriteString(string(buf.Bytes()))
 
-	if stringInSlice(path, walker.rewrittenFiles) {
-		panic("This file is already rewritten. This is a bug")
+	if !stringInSlice(path, walker.rewrittenFiles) {
+		walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 	}
-	walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 	return nil
 }
 
@@ -229,7 +227,6 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 	for _, decl := range f.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			for _, param := range funcDecl.Type.Params.List {
-				fmt.Println(param.Names)
 				if paramType, ok := param.Type.(*ast.StarExpr); ok {
 					if p2, ok := paramType.X.(*ast.SelectorExpr); ok {
 						if p3, ok := p2.X.(*ast.Ident); ok {
@@ -254,10 +251,9 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 		defer newFile.Close()
 		newFile.Write(buf.Bytes())
 
-		if stringInSlice(path, walker.rewrittenFiles) {
-			panic("This file is already rewritten. This is a bug")
+		if !stringInSlice(path, walker.rewrittenFiles) {
+			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 		}
-		walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 	}
 	return nil
 }
