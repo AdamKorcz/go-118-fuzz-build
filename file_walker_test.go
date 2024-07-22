@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -94,60 +93,97 @@ func TestRenameAllTestFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files, err := GetAllSourceFilesOfFile(filepath.Join(tempDir, "module1", "fuzz_test.go"))
+	originalFuzzTestPath := filepath.Join(tempDir, "module1", "fuzz_test.go")
+	originalSubmodule1OnePath := filepath.Join(tempDir, "module1", "submodule1", "one.go")
+	originalSubmodule1OneTestPath := filepath.Join(tempDir, "module1", "submodule1", "one_test.go")
+	originalSubmodule2TestOnePath := filepath.Join(tempDir, "module1", "submodule2", "test_one.go")
+	renamedFuzzTestPath := filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go")
+	renamedSubmodule1OneTestPath := filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go")
+	files, err := GetAllSourceFilesOfFile(originalFuzzTestPath)
 	if err != nil {
 		t.Fatalf("failed to load packages: %s", err)
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "fuzz_test.go"))
-	if err != nil {
-		t.Fatal(err)
+
+	// Check that our test files exist before we move them
+	if !fileExists(originalFuzzTestPath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one.go"))
-	if err != nil {
-		t.Fatal(err)
+	if !fileExists(originalSubmodule1OnePath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one_test.go"))
-	if err != nil {
-		t.Fatal(err)
+	if !fileExists(originalSubmodule1OneTestPath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule2", "test_one.go"))
-	if err != nil {
-		t.Fatal(err)
+	if !fileExists(originalSubmodule2TestOnePath) {
+		t.Fatal("File does not exist")
 	}
 	walker := NewFileWalker()
 	walker.RewriteAllImportedTestFiles(files)
 
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go"))
-	if err != nil {
-		t.Error("Did not rewrite module1/fuzz_test.go")
+	// Check that we rewrote the right files
+	if !fileExists(renamedFuzzTestPath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one.go"))
-	if err != nil {
-		t.Fatal(err)
+	if !fileExists(originalSubmodule1OnePath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go"))
-	if err != nil {
-		t.Fatal("Did not rewrite module1/submodule1/one_test.go")
+	if !fileExists(renamedSubmodule1OneTestPath) {
+		t.Fatal("File does not exist")
 	}
-	_, err = os.Stat(filepath.Join(tempDir, "module1", "submodule2", "test_one.go"))
-	if err != nil {
-		t.Fatal(err)
+	if !fileExists(originalSubmodule2TestOnePath) {
+		t.Fatal("File does not exist")
 	}
 	
-	fmt.Println(walker.renamedFiles)
+	// We should have renamed two files
 	if len(walker.renamedFiles) != 2 {
 		t.Error("There should be two rewrites")
 	}
 
-	if fuzzTest, ok := walker.renamedFiles[filepath.Join(tempDir, "module1", "fuzz_test.go")]; ok {
-		if fuzzTest != filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go") {
-			t.Errorf("Path is %s but should be %s", fuzzTest, filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go"))
+	if fuzzTest, ok := walker.renamedFiles[renamedFuzzTestPath]; ok {
+		if fuzzTest != renamedFuzzTestPath {
+			t.Errorf("Path is %s but should be %s", fuzzTest, renamedFuzzTestPath)
 		}
 	}
 
-	if oneTest, ok := walker.renamedFiles[filepath.Join(tempDir, "module1", "submodule1", "one_test.go")]; ok {
-		if oneTest != filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go") {
-			t.Errorf("Path is %s but should be %s", oneTest, filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go"))
+	if oneTest, ok := walker.renamedFiles[renamedSubmodule1OneTestPath]; ok {
+		if oneTest != renamedSubmodule1OneTestPath {
+			t.Errorf("Path is %s but should be %s", oneTest, renamedSubmodule1OneTestPath)
 		}
 	}
+
+	// Restore the files we renamed
+	err = walker.RestoreRenamedTestFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !fileExists(originalFuzzTestPath) {
+		t.Error("File does not exist")
+	}
+
+	if !fileExists(originalSubmodule1OnePath) {
+		t.Error("File does not exist")
+	}
+
+	if !fileExists(originalSubmodule1OneTestPath) {
+		t.Error("File does not exist")
+	}
+
+	if !fileExists(originalSubmodule2TestOnePath) {
+		t.Error("File does not exist")
+	}
+
+	// Make sure that the filenames that we changed the _test.go files
+	// to DO NOT exist anymore
+	if fileExists(renamedFuzzTestPath) {
+		t.Fatal("File should not exist")
+	}
+	if fileExists(renamedSubmodule1OneTestPath) {
+		t.Fatal("File should not exist")
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

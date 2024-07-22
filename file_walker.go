@@ -38,7 +38,6 @@ func NewFileWalker() *FileWalker {
 }
 
 
-
 // rewriteTestingImports rewrites imports for:
 // - all package files
 // - the fuzzer
@@ -212,6 +211,16 @@ func (walker *FileWalker) RewriteAllImportedTestFiles(files []string) error {
 				return err
 			}
 			walker.addRenamedFile(file, newName)
+		}
+	}
+	return nil
+}
+
+func (walker *FileWalker) RestoreRenamedTestFiles() error {
+	for originalFile, renamedFile := range walker.renamedFiles {
+		err := os.Rename(renamedFile, originalFile)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
