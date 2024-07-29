@@ -29,6 +29,7 @@ var (
 
 type FileWalker struct {
 	renamedFiles map[string]string
+	renamedTestFiles []string
 	rewrittenFiles []string
 	// Stores the original files
 	originalFiles map[string]string
@@ -42,6 +43,7 @@ func NewFileWalker() *FileWalker {
 	}
 	return &FileWalker {
 		renamedFiles: make(map[string]string),
+		renamedTestFiles: make([]string, 0),
 		rewrittenFiles: make([]string, 0),
 		originalFiles: make(map[string]string),
 		tmpDir: tmpDir,
@@ -49,6 +51,13 @@ func NewFileWalker() *FileWalker {
 }
 
 func (walker *FileWalker) cleanUp() {
+	for _, renamedTestFile := range walker.renamedTestFiles {		
+		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go")+"_test.go"
+		err := os.Rename(renamedTestFile, newName)
+		if err != nil {
+			panic(err)
+		}
+	}
 	for originalFilePath, tmpFilePath := range walker.originalFiles {
 		fmt.Println("Renaming ", originalFilePath, tmpFilePath, "...")
 		err := os.Rename(tmpFilePath, originalFilePath)
@@ -59,6 +68,8 @@ func (walker *FileWalker) cleanUp() {
 	os.RemoveAll(walker.tmpDir)
 }
 
+// "path" is expected to be a file in a module
+// that a fuzzer uses.
 func (walker *FileWalker) RewriteFile(path string) {
 	originalFileContents, err := os.ReadFile(path)
 	if err != nil {
@@ -83,6 +94,18 @@ func (walker *FileWalker) RewriteFile(path string) {
 			panic(err)
 		}
 		walker.originalFiles[path] = f.Name()
+	}
+	// rename test files from *_test.go to *_libFuzzer.go
+	if path[len(path)-8:] == "_test.go" {
+		newName := strings.TrimSuffix(path, "_test.go")+"_libFuzzer.go"
+		err := os.Rename(path, newName)
+		if err != nil {
+			panic(err)
+		}
+		// Store the new name
+		if !stringInSlice(newName, walker.renamedTestFiles) {
+			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
+		}
 	}
 }
 

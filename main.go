@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"strings"
 	"text/template"
+	"path/filepath"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -129,6 +130,19 @@ func main() {
 	for _, sourceFile := range allFiles {
 		walker.RewriteFile(sourceFile)
 	}
+	entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
+    if err != nil {
+        panic(err)
+    }
+ 
+    for _, e := range entries {
+            fmt.Println(e.Name())
+    }
+    fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
+    if err != nil {
+    	panic(err)
+    }
+    fmt.Println(string(fuzzerContents))
 	return
 	fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	if err != nil {
