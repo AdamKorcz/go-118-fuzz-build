@@ -122,6 +122,13 @@ func main() {
 		panic(err)
 	}
 	fmt.Println(allFiles)
+	walker := NewFileWalker()
+	fmt.Println("tmpDir: ", walker.tmpDir)
+	fmt.Println("originalFiles: ", walker.originalFiles)
+	defer walker.cleanUp()
+	for _, sourceFile := range allFiles {
+		walker.RewriteFile(sourceFile)
+	}
 	return
 	fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	if err != nil {

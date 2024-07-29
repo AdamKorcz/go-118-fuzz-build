@@ -30,136 +30,60 @@ var (
 type FileWalker struct {
 	renamedFiles map[string]string
 	rewrittenFiles []string
+	// Stores the original files
+	originalFiles map[string]string
+	tmpDir string
 }
 
 func NewFileWalker() *FileWalker {
+	tmpDir, err := os.MkdirTemp("", "gofuzzbuild")
+	if err != nil {
+		panic(err)
+	}
 	return &FileWalker {
 		renamedFiles: make(map[string]string),
 		rewrittenFiles: make([]string, 0),
+		originalFiles: make(map[string]string),
+		tmpDir: tmpDir,
 	}
 }
 
-
-// rewriteTestingImports rewrites imports for:
-// - all package files
-// - the fuzzer
-// - dependencies
-//
-// it rewrites "testing" => "github.com/AdamKorcz/go-118-fuzz-build/testing"
-func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, []byte, error) {
-	var fuzzFilepath string
-	var originalFuzzContents []byte
-	originalFuzzContents = []byte("NONE")
-
-	// First find file with fuzz harness
-	for _, pkg := range pkgs {
-		for _, file := range pkg.GoFiles {
-			err := rewriteTestingImport(file)
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-
-	// rewrite testing in imported packages
-	packages.Visit(pkgs, rewriteImportTesting, nil)
-
-	for _, pkg := range pkgs {
-		for _, file := range pkg.GoFiles {
-			fuzzFile, b, err := rewriteFuzzer(file, fuzzName)
-			if err != nil {
-				panic(err)
-			}
-			if fuzzFile != "" {
-				fuzzFilepath = fuzzFile
-				originalFuzzContents = b
-			}
-		}
-	}
-	return fuzzFilepath, originalFuzzContents, nil
-}
-
-func stringInSlice(a string, list []string) bool {
-    for _, b := range list {
-        if b == a {
-            return true
-        }
-    }
-    return false
-}
-
-func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile []byte, err error) {
-	var fileHasOurHarness bool // to determine whether we should rewrite filename
-	fileHasOurHarness = false
-
-	var originalFuzzContents []byte
-	originalFuzzContents = []byte("NONE")
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
-	if err != nil {
-		return "", originalFuzzContents, err
-	}
-	for _, decl := range f.Decls {
-		if _, ok := decl.(*ast.FuncDecl); ok {
-			if decl.(*ast.FuncDecl).Name.Name == fuzzerName {
-				fileHasOurHarness = true
-
-			}
-		}
-	}
-
-	if fileHasOurHarness {
-		originalFuzzContents, err = os.ReadFile(path)
+func (walker *FileWalker) cleanUp() {
+	for originalFilePath, tmpFilePath := range walker.originalFiles {
+		fmt.Println("Renaming ", originalFilePath, tmpFilePath, "...")
+		err := os.Rename(tmpFilePath, originalFilePath)
 		if err != nil {
 			panic(err)
 		}
-
-		// Replace import path
-		astutil.DeleteImport(fset, f, "testing")
-		astutil.AddImport(fset, f, "github.com/AdamKorcz/go-118-fuzz-build/testing")
 	}
+	os.RemoveAll(walker.tmpDir)
+}
 
-	// Rewrite filename
-	if fileHasOurHarness {
-		var buf bytes.Buffer
-		printer.Fprint(&buf, fset, f)
-
-		newFile, err := os.Create(path + "_fuzz.go")
+func (walker *FileWalker) RewriteFile(path string) {
+	originalFileContents, err := os.ReadFile(path)
+	if err != nil {
+		panic(err)
+	}
+	rewroteTestingFParams := walker.rewriteTestingFFunctionParams(path)
+	if rewroteTestingFParams {
+		err := walker.addShimImport(path)
 		if err != nil {
 			panic(err)
 		}
-		defer newFile.Close()
-		newFile.Write(buf.Bytes())
-		return path, originalFuzzContents, nil
-	}
-	return "", originalFuzzContents, nil
-}
-
-// Rewrites testing import of a single path
-func rewriteTestingImport(path string) error {
-	//fmt.Println("Rewriting ", path)
-	fsetCheck := token.NewFileSet()
-	fCheck, err := parser.ParseFile(fsetCheck, path, nil, parser.ImportsOnly)
-	if err != nil {
-		return err
-	}
-
-	// First check if the import already exists
-	// Return if it does.
-	for _, imp := range fCheck.Imports {
-		if imp.Path.Value == "github.com/AdamKorcz/go-118-fuzz-build/testing" {
-			return nil
+		// Save original file contents
+		f, err := os.CreateTemp(walker.tmpDir, "")
+		if err != nil {
+			panic(err)
 		}
-	}
-
-	// Replace import path
-	for _, imp := range fCheck.Imports {
-		if imp.Path.Value == "testing" {
-			imp.Path.Value = "github.com/AdamKorcz/go-118-fuzz-build/testing"
+		_, err = f.Write(originalFileContents)
+		if err != nil {
+			panic(err)
 		}
+		if err = f.Close(); err != nil {
+			panic(err)
+		}
+		walker.originalFiles[path] = f.Name()
 	}
-	return nil
 }
 
 // Rewrites testing import of a single path
@@ -205,25 +129,14 @@ func (walker *FileWalker) addShimImport(path string) error {
 	return nil
 }
 
-// Rewrites testing import of a package
-func rewriteImportTesting(pkg *packages.Package) bool {
-	for _, file := range pkg.GoFiles {
-		err := rewriteTestingImport(file)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return true
-}
-
 // Checks whether a fuzz test exists in a given file
-func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
+func (walker *FileWalker) rewriteTestingFFunctionParams(path string) bool {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	update := false
+	updated := false
 	for _, decl := range f.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			for _, param := range funcDecl.Type.Params.List {
@@ -232,7 +145,7 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 						if p3, ok := p2.X.(*ast.Ident); ok {
 							if p3.Name == "testing" && p2.Sel.Name == "F" {
 								p3.Name = customTestingName
-								update = true
+								updated = true
 							}
 						}
 					}
@@ -240,7 +153,7 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 			}
 		}
 	}
-	if update {
+	if updated {
 		var buf bytes.Buffer
 		printer.Fprint(&buf, fset, f)
 
@@ -255,7 +168,7 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) error {
 			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 		}
 	}
-	return nil
+	return updated
 }
 
 func (walker *FileWalker) RewriteAllImportedTestFiles(files []string) error {
@@ -414,3 +327,139 @@ func isStdLibPkg(importName string) bool {
 	}
 	return false
 }
+
+func stringInSlice(a string, list []string) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
+}
+
+// rewriteTestingImports rewrites imports for:
+// - all package files
+// - the fuzzer
+// - dependencies
+//
+// it rewrites "testing" => "github.com/AdamKorcz/go-118-fuzz-build/testing"
+func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, []byte, error) {
+	return "", []byte(""), nil
+	/*var fuzzFilepath string
+	var originalFuzzContents []byte
+	originalFuzzContents = []byte("NONE")
+
+	// First find file with fuzz harness
+	for _, pkg := range pkgs {
+		for _, file := range pkg.GoFiles {
+			err := rewriteTestingImport(file)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	// rewrite testing in imported packages
+	packages.Visit(pkgs, rewriteImportTesting, nil)
+
+	for _, pkg := range pkgs {
+		for _, file := range pkg.GoFiles {
+			fuzzFile, b, err := rewriteFuzzer(file, fuzzName)
+			if err != nil {
+				panic(err)
+			}
+			if fuzzFile != "" {
+				fuzzFilepath = fuzzFile
+				originalFuzzContents = b
+			}
+		}
+	}
+	return fuzzFilepath, originalFuzzContents, nil*/
+}
+
+
+/*func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile []byte, err error) {
+	var fileHasOurHarness bool // to determine whether we should rewrite filename
+	fileHasOurHarness = false
+
+	var originalFuzzContents []byte
+	originalFuzzContents = []byte("NONE")
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return "", originalFuzzContents, err
+	}
+	for _, decl := range f.Decls {
+		if _, ok := decl.(*ast.FuncDecl); ok {
+			if decl.(*ast.FuncDecl).Name.Name == fuzzerName {
+				fileHasOurHarness = true
+			}
+		}
+	}
+
+	if fileHasOurHarness {
+		originalFuzzContents, err = os.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+
+		// Replace import path
+		astutil.DeleteImport(fset, f, "testing")
+		astutil.AddImport(fset, f, "github.com/AdamKorcz/go-118-fuzz-build/testing")
+	}
+
+	// Rewrite filename
+	if fileHasOurHarness {
+		var buf bytes.Buffer
+		printer.Fprint(&buf, fset, f)
+
+		newFile, err := os.Create(path + "_fuzz.go")
+		if err != nil {
+			panic(err)
+		}
+		defer newFile.Close()
+		newFile.Write(buf.Bytes())
+		return path, originalFuzzContents, nil
+	}
+	return "", originalFuzzContents, nil
+}*/
+
+// Rewrites testing import of a single path
+/*func rewriteTestingImport(path string) error {
+	//fmt.Println("Rewriting ", path)
+	fsetCheck := token.NewFileSet()
+	fCheck, err := parser.ParseFile(fsetCheck, path, nil, parser.ImportsOnly)
+	if err != nil {
+		return err
+	}
+
+	// First check if the import already exists
+	// Return if it does.
+	for _, imp := range fCheck.Imports {
+		if imp.Path.Value == "github.com/AdamKorcz/go-118-fuzz-build/testing" {
+			return nil
+		}
+	}
+
+	// Replace import path
+	for _, imp := range fCheck.Imports {
+		if imp.Path.Value == "testing" {
+			imp.Path.Value = "github.com/AdamKorcz/go-118-fuzz-build/testing"
+		}
+	}
+	return nil
+}*/
+
+
+
+// Rewrites testing import of a package
+/*func rewriteImportTesting(pkg *packages.Package) bool {
+	for _, file := range pkg.GoFiles {
+		err := rewriteTestingImport(file)
+		if err != nil {
+			panic(err)
+		}
+	}
+	return true
+}*/
