@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"go/token"
 	"io/ioutil"
 	"log"
@@ -111,7 +112,17 @@ func main() {
 	/*if len(pkgs) != 1 {
 		log.Fatal("package path matched multiple packages")
 	}*/
-
+	fuzzerPath, err := getPathOfFuzzFile(path, *flagFunc, buildFlags)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("path: ", fuzzerPath)
+	allFiles, err := GetAllSourceFilesOfFile(fuzzerPath)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(allFiles)
+	return
 	fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	if err != nil {
 		panic(err)

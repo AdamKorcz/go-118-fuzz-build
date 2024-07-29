@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"go/ast"
+	"fmt"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -53,7 +54,6 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 	// First find file with fuzz harness
 	for _, pkg := range pkgs {
 		for _, file := range pkg.GoFiles {
-			//fmt.Println(file)
 			err := rewriteTestingImport(file)
 			if err != nil {
 				panic(err)
@@ -287,6 +287,39 @@ func (walker *FileWalker) addRenamedFile(oldPath, newPath string) {
 		panic("The file already exists which it shouldn't")
 	}
 	walker.renamedFiles[oldPath] = newPath
+}
+
+// Gets the path of 
+func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
+	pkgs, err := packages.Load(&packages.Config{
+		Mode:       LoadMode,
+		BuildFlags: buildFlags,
+		Tests:      true,
+	}, "pattern="+pkgPath)
+	if err != nil {
+		return "", err
+	}
+	for _, pkg := range pkgs {
+		if pkg.PkgPath != pkgPath {
+			continue
+		}
+		for _, file := range pkg.GoFiles {
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, file, nil, 0)
+			if err != nil {
+				return "", err
+			}
+			for _, decl := range f.Decls {
+				if _, ok := decl.(*ast.FuncDecl); ok {
+					if decl.(*ast.FuncDecl).Name.Name == fuzzerName {
+						return file, nil
+
+					}
+				}
+			}
+		}
+	}
+	return "", fmt.Errorf("Could not find the fuzz func")
 }
 
 /* Gets a list of files that are imported by a file */
