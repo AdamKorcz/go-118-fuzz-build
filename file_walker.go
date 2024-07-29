@@ -2,8 +2,8 @@ package main
 
 import (
 	"bytes"
-	"go/ast"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/printer"
 	"go/token"
@@ -23,17 +23,346 @@ var (
 		"-trimpath",
 		"-gcflags", "all=-d=libfuzzer",
 	}
-
-	stdLibPkgs = []string{"testing", "os", "reflect", "math/rand", "testing/internal/testdeps"}
+	stdLibPkgs = []string{
+		"slices",
+		"slices",
+		"cmp.test",
+		"cmp",
+		"os",
+		"sync",
+		"unsafe",
+		"internal/race",
+		"unsafe",
+		"runtime",
+		"internal/chacha8rand",
+		"internal/goarch",
+		"unsafe",
+		"internal/chacha8rand_test",
+		"bytes",
+		"errors",
+		"unsafe",
+		"internal/reflectlite",
+		"internal/abi",
+		"internal/goarch",
+		"unsafe",
+		"internal/abi_test",
+		"strings",
+		"errors",
+		"errors_test",
+		"testing",
+		"flag",
+"context",
+"time",
+"runtime",
+"runtime/internal/math",
+"runtime/internal/math_test",
+"testing/internal/testdeps",
+"os/signal",
+"sync",
+"internal/race",
+"runtime_test",
+"internal/goos",
+"math/rand",
+"internal/godebug",
+"sync/atomic",
+"sync/atomic_test",
+"reflect",
+"strconv",
+"math",
+"internal/cpu",
+"internal/cpu_test",
+"internal/cpu.test",
+"reflect_test",
+"testing/quick",
+"reflect.test",
+"reflect_test",
+"unicode/utf8",
+"unicode/utf8_test",
+"unicode",
+"unicode_test",
+"sort",
+"math/bits",
+"math/bits_test",
+"fmt",
+"fmt_test",
+"unicode/utf8",
+"unicode/utf8.test",
+"unicode/utf8_test",
+"testing/iotest",
+"encoding/binary",
+"io",
+"reflect",
+"encoding/binary_test",
+"encoding/binary",
+"encoding/binary.test",
+"encoding/base64_test",
+"encoding/base64",
+"encoding/base64.test",
+"math",
+"strconv",
+"encoding",
+"sort",
+"unicode/utf16",
+"unicode/utf16_test",
+"unicode",
+"internal/testenv",
+"internal/testenv_test",
+"path/filepath",
+"sort",
+"io/fs",
+"io/fs",
+"path",
+"internal/bytealg",
+"internal/cpu",
+"net",
+"vendor/golang.org/x/net/dns/dnsmessage",
+"internal/poll",
+"internal/syscall/unix",
+"syscall",
+"internal/itoa_test",
+"internal/itoa",
+"internal/itoa.test",
+"internal/oserror",
+"syscall_test",
+"os/exec",
+"syscall",
+"syscall.test",
+"syscall_test",
+"internal/syscall/execenv",
+"internal/syscall/unix",
+"os/exec_test",
+"os/user",
+"runtime/cgo",
+"runtime/internal/sys",
+"runtime/internal/sys",
+"runtime/internal/sys_test",
+"crypto/ecdsa",
+"crypto/aes",
+"crypto/internal/alias",
+"crypto/internal/alias",
+"crypto/internal/alias.test",
+"crypto/internal/alias",
+"crypto/subtle",
+"crypto/subtle",
+"crypto/subtle_test",
+"crypto/rand",
+"crypto/rand",
+"crypto/internal/boring",
+"crypto/internal/boring",
+"crypto",
+"crypto",
+"hash",
+"hash",
+"hash_test",
+"crypto/sha256",
+"crypto/sha256",
+"hash",
+"hash.test",
+"hash_test",
+"hash",
+"crypto",
+"crypto_test",
+"crypto/aes",
+"crypto/aes.test",
+"crypto/aes",
+"crypto/cipher",
+"crypto/cipher",
+"crypto/internal/alias",
+"crypto/subtle",
+"crypto/subtle.test",
+"crypto/subtle",
+"crypto/subtle_test",
+"crypto/cipher_test",
+"crypto/aes",
+"crypto/des",
+"crypto/des",
+"crypto/cipher",
+"crypto/cipher.test",
+"encoding/json",
+"encoding/json",
+"encoding/json_test",
+"encoding/json",
+"encoding/json.test",
+"encoding/json",
+"encoding/json_test",
+"log",
+"log",
+"log/internal",
+"log/internal",
+"log_test",
+"log",
+"log.test",
+"log_test",
+"log",
+"net/url",
+"net/url",
+"net/url_test",
+"log",
+"net/url",
+"net/url.test",
+"net/ur",
+"mime",
+"mime",
+"bufio",
+"mime_test",
+"mime",
+"mime.test",
+"mime",
+"mime_test",
+"container/list",
+"container/list",
+"container/list_test",
+"container/list",
+"container/list.test",
+"container/list_test",
+"container/list",
+"log",
+"net/textproto",
+"net/textproto",
+"bufio",
+"net/textproto.test",
+"net/textproto",
+"net/http",
+"net/http",
+"net/http/internal",
+"net/http/internal",
+"bufio",
+"bufio.test",
+"bufio                                                                                                                                                        ",
+"net/http/internal.test                                                                                                                                             ",
+"net/http/internal",
+"regexp",
+"regexp",
+"regexp/syntax",
+"regexp/syntax",
+"regexp/syntax.test",
+"regexp/syntax",
+"regexp_test",
+"regexp",
+"regexp.test",
+"regexp",
+"regexp_test",
+"net/http/internal",
+"testing/fstest",
+"testing/fstest",
+"testing/fstest.test",
+"testing/fstest",
+"net/http/cookiejar",
+"net/http/cookiejar",
+"net/http",
+"net/http.test",
+"net/http",
+"net/http_test",
+"net/http/internal/ascii",
+"net/url",
+"net/http/cookiejar_test",
+"log",
+"net/http",
+"net/http/cookiejar",
+"net/http/cookiejar.test",
+"net/http/cookiejar",
+"net/http/cookiejar_test",
+"net/http/httptest",
+"net/http/httptest",
+"compress/gzip",
+"compress/gzip",
+"hash/crc32",
+"hash/crc32",
+"hash/crc32_test",
+"hash/crc32",
+"hash/crc32.test",
+"hash/crc32",
+"hash/crc32_test",
+"bufio",
+"compress/flate",
+"compress/flate",
+"bufio",
+"compress/flate_test",
+"log",
+"compress/flate",
+"compress/flate.test",
+"compress/flate",
+"compress/flate_test",
+"compress/gzip_test",
+"net/http",
+"net/http_test",
+"regexp",
+"regexp",
+"regexp/syntax",
+"regexp/syntax",
+"regexp/syntax.test",
+"regexp/syntax",
+"regexp_test",
+"regexp",
+"regexp.test",
+"regexp",
+"crypto/internal/bigmod.test",
+"crypto/internal/bigmod",
+"crypto/internal/randutil",
+"crypto/internal/randutil",
+"math/big",
+"crypto/internal/boring/bbig",
+"crypto/internal/boring/bbig",
+"math/big",
+"crypto/rsa_test",
+"crypto/x509",
+"crypto/x509_test",
+"crypto/elliptic",
+"crypto/elliptic",
+"math/big",
+"crypto/internal/nistec",
+"crypto/internal/nistec",
+"crypto/internal/nistec/fiat",
+"crypto/internal/nistec/fiat",
+"crypto/internal/nistec/fiat_test",
+"crypto/internal/nistec/fiat",
+"crypto/internal/nistec/fiat.test",
+"crypto/internal/nistec/fiat_test",
+"crypto/internal/nistec/fiat",
+"embed",
+"embed",
+"embed_test",
+"net/http",
+"embed",
+"embed.test",
+"embed_test",
+"embed",
+"log",
+"crypto/internal/nistec_test",
+"math/big",
+"crypto/elliptic",
+"crypto/elliptic.test",
+"crypto/elliptic",
+"crypto/internal/nistec",
+"crypto/internal/nistec.test",
+"crypto/internal/nistec",
+"crypto/internal/nistec_test",
+"crypto/ed25519",
+"maps.test",
+"maps",
+"maps_test",
+"net/netip",
+"net/netip",
+"internal/intern",
+"internal/intern",
+"internal/intern.test",
+"internal/intern",
+"net/netip_test",
+"internal/intern",
+"net/netip",
+"net/netip.test",
+"net/netip",
+"net/netip_test",
+	}
 )
 
 type FileWalker struct {
-	renamedFiles map[string]string
+	renamedFiles     map[string]string
 	renamedTestFiles []string
-	rewrittenFiles []string
+	rewrittenFiles   []string
 	// Stores the original files
 	originalFiles map[string]string
-	tmpDir string
+	tmpDir        string
 }
 
 func NewFileWalker() *FileWalker {
@@ -41,18 +370,18 @@ func NewFileWalker() *FileWalker {
 	if err != nil {
 		panic(err)
 	}
-	return &FileWalker {
-		renamedFiles: make(map[string]string),
+	return &FileWalker{
+		renamedFiles:     make(map[string]string),
 		renamedTestFiles: make([]string, 0),
-		rewrittenFiles: make([]string, 0),
-		originalFiles: make(map[string]string),
-		tmpDir: tmpDir,
+		rewrittenFiles:   make([]string, 0),
+		originalFiles:    make(map[string]string),
+		tmpDir:           tmpDir,
 	}
 }
 
 func (walker *FileWalker) cleanUp() {
-	for _, renamedTestFile := range walker.renamedTestFiles {		
-		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go")+"_test.go"
+	for _, renamedTestFile := range walker.renamedTestFiles {
+		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
 		err := os.Rename(renamedTestFile, newName)
 		if err != nil {
 			panic(err)
@@ -97,7 +426,7 @@ func (walker *FileWalker) RewriteFile(path string) {
 	}
 	// rename test files from *_test.go to *_libFuzzer.go
 	if path[len(path)-8:] == "_test.go" {
-		newName := strings.TrimSuffix(path, "_test.go")+"_libFuzzer.go"
+		newName := strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
 		err := os.Rename(path, newName)
 		if err != nil {
 			panic(err)
@@ -113,7 +442,7 @@ func (walker *FileWalker) RewriteFile(path string) {
 func (walker *FileWalker) addShimImport(path string) error {
 	//fmt.Println("Rewriting ", path)
 	fset := token.NewFileSet()
-	fCheck, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+	fCheck, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
 		return err
 	}
@@ -129,13 +458,13 @@ func (walker *FileWalker) addShimImport(path string) error {
 	// Replace import path
 	astutil.DeleteImport(fset, fCheck, "testing")
 	astutil.AddNamedImport(fset,
-						   fCheck,
-						   "_",
-						   "testing")
+		fCheck,
+		"_",
+		"testing")
 	astutil.AddNamedImport(fset,
-						   fCheck,
-						   customTestingName,
-						   "github.com/AdamKorcz/go-118-fuzz-build/testing")
+		fCheck,
+		customTestingName,
+		"github.com/AdamKorcz/go-118-fuzz-build/testing")
 	var buf bytes.Buffer
 	printer.Fprint(&buf, fset, fCheck)
 
@@ -197,7 +526,7 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(path string) bool {
 func (walker *FileWalker) RewriteAllImportedTestFiles(files []string) error {
 	for _, file := range files {
 		if file[len(file)-8:] == "_test.go" {
-			newName := strings.TrimSuffix(file, "_test.go")+"_libFuzzer.go"
+			newName := strings.TrimSuffix(file, "_test.go") + "_libFuzzer.go"
 			err := os.Rename(file, newName)
 			if err != nil {
 				return err
@@ -225,7 +554,7 @@ func (walker *FileWalker) addRenamedFile(oldPath, newPath string) {
 	walker.renamedFiles[oldPath] = newPath
 }
 
-// Gets the path of 
+// Gets the path of
 func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
@@ -259,14 +588,16 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 }
 
 /* Gets a list of files that are imported by a file */
-func GetAllSourceFilesOfFile(filePath string) ([]string, error) {
+func GetAllSourceFilesOfFile(pkgPath, filePath string) ([]string, error) {
 	files := make([]string, 0)
-	pkgs, err := getAllPackagesOfFile(filePath)
+	pkgs, err := getAllPackagesOfFile(pkgPath, filePath)
 	if err != nil {
 		return files, err
 	}
 	for _, pkg := range pkgs {
+		fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
 		for _, file := range pkg.GoFiles {
+			fmt.Println("file: ", file)
 			// There may be compiled files in the go cache. Ignore those
 			if strings.Contains(file, "/.cache/") {
 				continue
@@ -277,7 +608,7 @@ func GetAllSourceFilesOfFile(filePath string) ([]string, error) {
 	return files, nil
 }
 
-func getAllPackagesOfFile(filePath string) ([]*packages.Package, error) {
+func getAllPackagesOfFile(pkgPath, filePath string) ([]*packages.Package, error) {
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags2,
@@ -294,15 +625,38 @@ func getAllPackagesOfFile(filePath string) ([]*packages.Package, error) {
 	if len(pkgs) != 1 {
 		panic("there should only be one file here")
 	}
-	return appendPkgImports(pkgs[0], pkgs)
+	fmt.Println("appending pkg imports")
+	return appendPkgImports(pkgs[0], pkgs, pkgPath)
 }
 
-func appendPkgImports(pkg *packages.Package, pkgs []*packages.Package) ([]*packages.Package, error) {
+func isStdLibPkg(importName string) bool {
+	for _, stdLibPkg := range stdLibPkgs {
+		if strings.EqualFold(importName, stdLibPkg) {
+			return true
+		}
+	}
+	return false
+}
+
+func appendPkgImports(pkg *packages.Package, pkgs []*packages.Package, modulePath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
+		// Check that the package is the same module
+		if imp.Module != nil {
+			if len(imp.Module.Path) < len(modulePath) {
+				fmt.Println("skipping1 ", imp.Module.Path)
+				continue
+			}
+			if imp.Module.Path != modulePath {
+				fmt.Println("skipping2 ", imp.Module.Path)
+				continue
+			}
+		}
 		if isStdLibPkg(imp.PkgPath) {
 			continue
 		}
+
+		fmt.Println(imp.PkgPath)
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
 			return pkgsCopy, err
@@ -311,8 +665,9 @@ func appendPkgImports(pkg *packages.Package, pkgs []*packages.Package) ([]*packa
 			if pkgInPkgs(pack.PkgPath, pkgsCopy) {
 				continue
 			}
+			fmt.Println(pack.PkgPath)
 			pkgsCopy = append(pkgsCopy, pack)
-			pkgsCopy, err = appendPkgImports(pack, pkgsCopy)
+			pkgsCopy, err = appendPkgImports(pack, pkgsCopy, modulePath)
 			if err != nil {
 				return pkgsCopy, err
 			}
@@ -342,22 +697,13 @@ func pkgInPkgs(importPath string, pkgs []*packages.Package) bool {
 	return false
 }
 
-func isStdLibPkg(importName string) bool {
-	for _, stdLibPkg := range stdLibPkgs {
-		if strings.EqualFold(importName, stdLibPkg) {
+func stringInSlice(a string, list []string) bool {
+	for _, b := range list {
+		if b == a {
 			return true
 		}
 	}
 	return false
-}
-
-func stringInSlice(a string, list []string) bool {
-    for _, b := range list {
-        if b == a {
-            return true
-        }
-    }
-    return false
 }
 
 // rewriteTestingImports rewrites imports for:
@@ -399,7 +745,6 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 	}
 	return fuzzFilepath, originalFuzzContents, nil*/
 }
-
 
 /*func rewriteFuzzer(path, fuzzerName string) (originalPath string, originalFile []byte, err error) {
 	var fileHasOurHarness bool // to determine whether we should rewrite filename
@@ -473,8 +818,6 @@ func rewriteTestingImports(pkgs []*packages.Package, fuzzName string) (string, [
 	}
 	return nil
 }*/
-
-
 
 // Rewrites testing import of a package
 /*func rewriteImportTesting(pkg *packages.Package) bool {

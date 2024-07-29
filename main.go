@@ -101,6 +101,9 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
 	}
+	if pkgs[0].Module == nil {
+		panic("path.Module is nil")
+	}
 	visit := func(pkg *packages.Package) {
 		if !shouldInstrument(pkg.PkgPath) {
 			buildFlags = append(buildFlags, "-gcflags", pkg.PkgPath+"=-d=libfuzzer=0")
@@ -118,7 +121,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("path: ", fuzzerPath)
-	allFiles, err := GetAllSourceFilesOfFile(fuzzerPath)
+	allFiles, err := GetAllSourceFilesOfFile(pkgs[0].Module.Path, fuzzerPath)
 	if err != nil {
 		panic(err)
 	}
@@ -138,6 +141,7 @@ func main() {
     for _, e := range entries {
             fmt.Println(e.Name())
     }
+    fmt.Println("contents of fuzzer: ")
     fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
     if err != nil {
     	panic(err)
