@@ -131,6 +131,7 @@ func main() {
 	fmt.Println("originalFiles: ", walker.originalFiles)
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
+		fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile)
 	}
 	entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
@@ -147,12 +148,12 @@ func main() {
     	panic(err)
     }
     fmt.Println(string(fuzzerContents))
-	return
-	fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
-	if err != nil {
-		panic(err)
-	}
-	os.Remove(fuzzerFile)
+	//return
+	//fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
+	//if err != nil {
+	//	panic(err)
+	//}
+	//os.Remove(fuzzerFile)
 
 	pkg := pkgs[0]
 
@@ -209,7 +210,7 @@ func main() {
 		log.Fatal("failed to build packages:", err)
 	}
 
-	newFile, err := os.Create(fuzzerFile)
+	/*newFile, err := os.Create(fuzzerFile)
 	if err != nil {
 		panic(err)
 	}
@@ -218,7 +219,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	os.Remove(fuzzerFile + "_fuzz.go")
+	os.Remove(fuzzerFile + "_fuzz.go")*/
 }
 
 // Packages that match one of the include patterns (default is include all packages)

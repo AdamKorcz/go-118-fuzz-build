@@ -381,6 +381,7 @@ func NewFileWalker() *FileWalker {
 
 func (walker *FileWalker) cleanUp() {
 	for _, renamedTestFile := range walker.renamedTestFiles {
+		fmt.Println("Cleaning up1... ", renamedTestFile)
 		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
 		err := os.Rename(renamedTestFile, newName)
 		if err != nil {
@@ -388,7 +389,7 @@ func (walker *FileWalker) cleanUp() {
 		}
 	}
 	for originalFilePath, tmpFilePath := range walker.originalFiles {
-		fmt.Println("Renaming ", originalFilePath, tmpFilePath, "...")
+		fmt.Println("Cleaning up2... ", originalFilePath, tmpFilePath, "...")
 		err := os.Rename(tmpFilePath, originalFilePath)
 		if err != nil {
 			panic(err)
