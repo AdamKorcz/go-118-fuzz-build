@@ -92,6 +92,12 @@ func main() {
 	}
 	buildFlags = append(buildFlags, "-gcflags", "all=-d=libfuzzer")
 
+	cwd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("cwd: ", cwd)
+
 	//fset := token.NewFileSet()
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
@@ -149,6 +155,10 @@ func main() {
     	panic(err)
     }
     fmt.Println(string(fuzzerContents))
+    err = os.Chdir(cwd)
+    if err != nil {
+    	panic(err)
+    }
 	//return
 	//fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	//if err != nil {
