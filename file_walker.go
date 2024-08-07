@@ -277,6 +277,7 @@ func (walker *FileWalker) RestoreRenamedTestFiles() error {
 
 // Gets the path of
 func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
+	fmt.Println("pkgPath line 280: ", pkgPath)
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags,
@@ -286,10 +287,12 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 		return "", err
 	}
 	for _, pkg := range pkgs {
+		fmt.Println("pkg line 290: ", pkg.PkgPath)
 		if pkg.PkgPath != pkgPath {
 			continue
 		}
 		for _, file := range pkg.GoFiles {
+			fmt.Println("file line 295: ", file)
 			fset := token.NewFileSet()
 			f, err := parser.ParseFile(fset, file, nil, 0)
 			if err != nil {
@@ -297,6 +300,7 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 			}
 			for _, decl := range f.Decls {
 				if _, ok := decl.(*ast.FuncDecl); ok {
+					fmt.Println("func name line 303: ", decl.(*ast.FuncDecl).Name.Name)
 					if decl.(*ast.FuncDecl).Name.Name == fuzzerName {
 						return file, nil
 
