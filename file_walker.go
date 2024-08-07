@@ -188,7 +188,7 @@ type TestingTWalker struct {
 }
 
 func (walker *TestingTWalker) Visit(n ast.Node) ast.Visitor {
-	fmt.Println("Visit'ing node")
+	//fmt.Println("Visit'ing node")
 	if n == nil {
 		return walker
 	}
@@ -277,7 +277,6 @@ func (walker *FileWalker) RestoreRenamedTestFiles() error {
 
 // Gets the path of
 func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
-	fmt.Println("pkgPath line 280: ", pkgPath)
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags,
