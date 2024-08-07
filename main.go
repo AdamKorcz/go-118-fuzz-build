@@ -116,7 +116,7 @@ func main() {
 	/*if len(pkgs) != 1 {
 		log.Fatal("package path matched multiple packages")
 	}*/
-	fmt.Println("main.go line 119 path: ", path, "pkgPath: ", pkgs[0].pkgPath)
+	fmt.Println("main.go line 119 path: ", path, "pkgPath: ", pkgs[0].PkgPath)
 	fuzzerPath, err := getPathOfFuzzFile(path, *flagFunc, buildFlags)
 	if err != nil {
 		panic(err)
