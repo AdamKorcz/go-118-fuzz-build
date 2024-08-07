@@ -287,7 +287,7 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 		return "", err
 	}
 	for _, pkg := range pkgs {
-		fmt.Println("pkg line 290: ", pkg.PkgPath)
+		fmt.Println("pkg line 290: ", pkg.PkgPath, "pkgPath: ", pkgPath)
 		if pkg.PkgPath != pkgPath {
 			continue
 		}
