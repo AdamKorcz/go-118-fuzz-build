@@ -287,12 +287,10 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 		return "", err
 	}
 	for _, pkg := range pkgs {
-		fmt.Println("pkg line 290: ", pkg.PkgPath, "pkgPath: ", pkgPath)
 		if pkg.PkgPath != pkgPath {
 			continue
 		}
 		for _, file := range pkg.GoFiles {
-			fmt.Println("file line 295: ", file)
 			fset := token.NewFileSet()
 			f, err := parser.ParseFile(fset, file, nil, 0)
 			if err != nil {
@@ -300,7 +298,6 @@ func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string,
 			}
 			for _, decl := range f.Decls {
 				if _, ok := decl.(*ast.FuncDecl); ok {
-					fmt.Println("func name line 303: ", decl.(*ast.FuncDecl).Name.Name)
 					if decl.(*ast.FuncDecl).Name.Name == fuzzerName {
 						return file, nil
 
@@ -370,11 +367,11 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 		// Check that the package is the same module
 		if imp.Module != nil {
 			if len(imp.Module.Path) < len(modulePath) {
-				fmt.Println("skipping1 ", imp.Module.Path)
+				//fmt.Println("skipping1 ", imp.Module.Path)
 				continue
 			}
 			if imp.Module.Path != modulePath {
-				fmt.Println("skipping2 ", imp.Module.Path)
+				//fmt.Println("skipping2 ", imp.Module.Path)
 				continue
 			}
 		}
@@ -382,7 +379,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			continue
 		}
 
-		fmt.Println(imp.PkgPath)
+		//fmt.Println(imp.PkgPath)
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
 			return pkgsCopy, err
