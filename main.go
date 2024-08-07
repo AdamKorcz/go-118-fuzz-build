@@ -208,6 +208,7 @@ func main() {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
+		panic(err)
 		log.Fatal("failed to build packages:", err)
 	}
 
