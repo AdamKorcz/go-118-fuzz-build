@@ -139,7 +139,7 @@ func main() {
 	walker := NewFileWalker()
 	fmt.Println("tmpDir: ", walker.tmpDir)
 	fmt.Println("originalFiles: ", walker.originalFiles)
-	//defer walker.cleanUp()
+	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
 		fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile)
@@ -218,6 +218,7 @@ func main() {
 	//cmd := exec.Command("gotip", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	fmt.Println("running cmd.Run()")
 
 	if err := cmd.Run(); err != nil {
 		panic(err)
