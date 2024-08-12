@@ -107,8 +107,11 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
 	}
+	var modulePath string
 	if pkgs[0].Module == nil {
-		panic("path.Module is nil")
+		modulePath = ""
+	} else {
+		modulePath = pkgs[0].Module.Path
 	}
 	visit := func(pkg *packages.Package) {
 		if !shouldInstrument(pkg.PkgPath) {
@@ -128,7 +131,7 @@ func main() {
 		panic(err)
 	}
 	fmt.Println("path: ", fuzzerPath)
-	allFiles, err := GetAllSourceFilesOfFile(pkgs[0].Module.Path, fuzzerPath)
+	allFiles, err := GetAllSourceFilesOfFile(modulePath, fuzzerPath)
 	if err != nil {
 		panic(err)
 	}
@@ -136,7 +139,7 @@ func main() {
 	walker := NewFileWalker()
 	fmt.Println("tmpDir: ", walker.tmpDir)
 	fmt.Println("originalFiles: ", walker.originalFiles)
-	defer walker.cleanUp()
+	//defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
 		fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile)
@@ -144,8 +147,7 @@ func main() {
 	entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
     if err != nil {
         panic(err)
-    }
- 
+    } 
     for _, e := range entries {
             fmt.Println(e.Name())
     }

@@ -364,7 +364,9 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
 		// Check that the package is the same module
-		if imp.Module != nil {
+		// This is a performance optimization, so we
+		// can skip it if we don't have the modules
+		if imp.Module != nil && modulePath != "" {
 			if len(imp.Module.Path) < len(modulePath) {
 				//fmt.Println("skipping1 ", imp.Module.Path)
 				continue
