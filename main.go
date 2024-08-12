@@ -125,38 +125,38 @@ func main() {
 	/*if len(pkgs) != 1 {
 		log.Fatal("package path matched multiple packages")
 	}*/
-	fmt.Println("main.go line 119 path: ", path, "pkgPath: ", pkgs[0].PkgPath)
+	//fmt.Println("main.go line 119 path: ", path, "pkgPath: ", pkgs[0].PkgPath)
 	fuzzerPath, err := getPathOfFuzzFile(pkgs[0].PkgPath, *flagFunc, buildFlags)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("path: ", fuzzerPath)
+	//fmt.Println("path: ", fuzzerPath)
 	allFiles, err := GetAllSourceFilesOfFile(modulePath, fuzzerPath)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(allFiles)
+	//fmt.Println(allFiles)
 	walker := NewFileWalker()
-	fmt.Println("tmpDir: ", walker.tmpDir)
-	fmt.Println("originalFiles: ", walker.originalFiles)
+	//fmt.Println("tmpDir: ", walker.tmpDir)
+	//fmt.Println("originalFiles: ", walker.originalFiles)
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
-		fmt.Println("rewriting", sourceFile)
+	//	fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile)
 	}
 	entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
     if err != nil {
         panic(err)
     } 
-    for _, e := range entries {
-            fmt.Println(e.Name())
-    }
-    fmt.Println("contents of fuzzer: ")
+    //for _, e := range entries {
+    //        fmt.Println(e.Name())
+    //}
+    //fmt.Println("contents of fuzzer: ")
     fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
     if err != nil {
     	panic(err)
     }
-    fmt.Println(string(fuzzerContents))
+    //fmt.Println(string(fuzzerContents))
     err = os.Chdir(cwd)
     if err != nil {
     	panic(err)
@@ -218,7 +218,7 @@ func main() {
 	//cmd := exec.Command("gotip", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	fmt.Println("running cmd.Run()")
+	//fmt.Println("running cmd.Run()")
 
 	if err := cmd.Run(); err != nil {
 		panic(err)
