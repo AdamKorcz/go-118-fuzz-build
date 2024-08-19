@@ -77,7 +77,32 @@ func (walker *FileWalker) cleanUp() {
 
 // "path" is expected to be a file in a module
 // that a fuzzer uses.
-func (walker *FileWalker) RewriteFile(path string) {
+func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
+	// Check for files outside of the fuzzing module.
+	// This is quite late to catch it and should be done smarter
+	// earlier in the process.
+	// This only catches an issue in the OSS-Fuzz env.
+	// We should essentially check if the file is outside of the module dir.
+	if strings.Contains(path, "/root/.go/") {
+		return
+	}
+
+	// TODO: Check if it is a "_test" pkg outside of the fuzzers dir.
+	// If it is, then we should not rewrite it.
+	fset1 := token.NewFileSet()
+	f, err := parser.ParseFile(fset1, path, nil, parser.PackageClauseOnly)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// Check ends in "_test".
+	// Could use "HasSuffix here instead"
+	if len(f.Name.Name) >= 5 && f.Name.Name[len(f.Name.Name)-5:] == "_test" {
+		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
+			return
+		}
+	}
+
 	originalFileContents, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
@@ -324,9 +349,8 @@ func GetAllSourceFilesOfFile(modulePath, fuzzerFilePath string) ([]string, error
 	for _, pkg := range pkgs {
 		//fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
 		for _, file := range pkg.GoFiles {
-			fmt.Println("file: ", file)
-			// There may be compiled files in the go cache. Ignore those
-			if strings.Contains(file, "/.cache/") {
+			// There may be files in the go cache. Ignore those
+			if strings.Contains(file, "/.cache/go-build") {
 				continue
 			}
 			files = append(files, file)
@@ -363,22 +387,62 @@ func isStdLibPkg(importName string) bool {
 			return true
 		}
 	}
+	if len(importName) >= 6 && importName[:6] == "crypto" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "archive" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "internal" {
+		return true
+	}
+	if len(importName) >= 2 && importName[:2] == "go" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "encoding" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "compress" {
+		return true
+	}
+	if len(importName) >= 3 && importName[:3] == "net" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "testing" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "internal" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "runtime" {
+		return true
+	}
 	return false
 }
 
+// We need this to get the .go files of all the imports
+// so we can check if we need to rewrite any of the
+// imported .go files.
+// This is currently very slow to a degree that it could
+// be a problem.
 func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package, modulePath, fuzzerPath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
+		// We might have already loaded this import package
+		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
+			fmt.Println("ALREADY has ", imp.PkgPath)
+			continue
+		}
 		// Check that the package is the same module
 		// This is a performance optimization, so we
 		// can skip it if we don't have the modules
 		if imp.Module != nil && modulePath != "" {
 			if len(imp.Module.Path) < len(modulePath) {
-				//fmt.Println("skipping1 ", imp.Module.Path)
+				fmt.Println("skipping1 ", imp.Module.Path)
 				continue
 			}
 			if imp.Module.Path != modulePath {
-				//fmt.Println("skipping2 ", imp.Module.Path)
+				fmt.Println("skipping2 ", imp.Module.Path)
 				continue
 			}
 		}
@@ -386,21 +450,21 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			continue
 		}
 
-		//fmt.Println(imp.PkgPath)
+		fmt.Println("loading pkg: ", imp.PkgPath)
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
+			fmt.Println("error loadPkg: ", err)
 			return pkgsCopy, err
 		}
+		fmt.Println("Len of loaded packages: ", len(pkgsCopy))
 		for _, pack := range p {
-			if alreadyHaveThisPkg(pack.PkgPath, pkgsCopy) {
-				continue
-			}
 			// Here we should evaluate if the package:
 			// 1. is a "_test" package
 			// 2. is imported (ie. it is not the package that the fuzzer is in)
 			// 3. there are other packages in the folder for example a non-_test package
 			// If the answer is "yes" to all three questions, then we should continue here
 			if !shouldChangeTestPackage(imp, fuzzerPkg, fuzzerPath) {
+				//fmt.Println("Should not rewrite, ", imp)
 				continue
 			}
 
@@ -416,7 +480,9 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 }
 
 func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string) bool {
-	if !strings.HasSuffix(imp.Name, "_test") {
+	fmt.Println("imp.Name:::::::::::::", imp.Name)
+	if strings.HasSuffix(imp.Name, "_test") {
+		fmt.Println("return here: ", imp.Name)
 		return false
 	}
 	// Get the filepath of the package
@@ -430,15 +496,20 @@ func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string
 	}
 	// If the import dir path is not the same as the fuzzers, then we shouldn't rewrite it
 	if filepath.Dir(imp.GoFiles[0]) != filepath.Dir(fuzzerPath) {
-		return false
+		//fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
+		//return false
 	}
 
 	return true
 }
 
 func loadPkg(path string) ([]*packages.Package, error) {
+	loadMode := packages.NeedName |
+		packages.NeedFiles |
+		packages.NeedImports |
+		packages.NeedModule
 	pkgs, err := packages.Load(&packages.Config{
-		Mode:       LoadMode,
+		Mode:       loadMode,
 		BuildFlags: buildFlags2,
 		Tests:      true,
 	}, path)

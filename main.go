@@ -142,7 +142,7 @@ func main() {
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
 		//	fmt.Println("rewriting", sourceFile)
-		walker.RewriteFile(sourceFile)
+		walker.RewriteFile(sourceFile, fuzzerPath)
 	}
 	//entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
 	if err != nil {
