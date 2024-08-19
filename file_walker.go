@@ -432,6 +432,7 @@ func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string
 	}
 	// If the import dir path is not the same as the fuzzers, then we shouldn't rewrite it
 	if filepath.Dir(imp.GoFiles[0]) != filepath.Dir(fuzzerPath) {
+		fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
 		return false
 	}
 
