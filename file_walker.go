@@ -374,11 +374,11 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 		// can skip it if we don't have the modules
 		if imp.Module != nil && modulePath != "" {
 			if len(imp.Module.Path) < len(modulePath) {
-				//fmt.Println("skipping1 ", imp.Module.Path)
+				fmt.Println("skipping1 ", imp.Module.Path)
 				continue
 			}
 			if imp.Module.Path != modulePath {
-				//fmt.Println("skipping2 ", imp.Module.Path)
+				fmt.Println("skipping2 ", imp.Module.Path)
 				continue
 			}
 		}
@@ -386,9 +386,10 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			continue
 		}
 
-		//fmt.Println(imp.PkgPath)
+		fmt.Println("loading pkg: ", imp.PkgPath)
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
+			fmt.Println("error loadPkg: ", err)
 			return pkgsCopy, err
 		}
 		for _, pack := range p {
