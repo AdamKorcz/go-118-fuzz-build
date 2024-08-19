@@ -363,12 +363,25 @@ func isStdLibPkg(importName string) bool {
 			return true
 		}
 	}
+	if len(importName) >= 6 && importName[:6] == "crypto" {
+		return true
+	}
 	return false
 }
 
+// We need this to get the .go files of all the imports
+// so we can check if we need to rewrite any of the
+// imported .go files.
+// This is currently very slow to a degree that it could
+// be a problem.
 func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package, modulePath, fuzzerPath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
+		// We might have already loaded this import package
+		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
+			fmt.Println("ALREADY has ", imp.PkgPath)
+			continue
+		}
 		// Check that the package is the same module
 		// This is a performance optimization, so we
 		// can skip it if we don't have the modules
@@ -392,17 +405,15 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			fmt.Println("error loadPkg: ", err)
 			return pkgsCopy, err
 		}
+		fmt.Println("Len of loaded packages")
 		for _, pack := range p {
-			if alreadyHaveThisPkg(pack.PkgPath, pkgsCopy) {
-				continue
-			}
 			// Here we should evaluate if the package:
 			// 1. is a "_test" package
 			// 2. is imported (ie. it is not the package that the fuzzer is in)
 			// 3. there are other packages in the folder for example a non-_test package
 			// If the answer is "yes" to all three questions, then we should continue here
 			if !shouldChangeTestPackage(imp, fuzzerPkg, fuzzerPath) {
-				fmt.Println("Should not rewrite, ", imp)
+				//fmt.Println("Should not rewrite, ", imp)
 				continue
 			}
 
@@ -433,8 +444,8 @@ func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string
 	}
 	// If the import dir path is not the same as the fuzzers, then we shouldn't rewrite it
 	if filepath.Dir(imp.GoFiles[0]) != filepath.Dir(fuzzerPath) {
-		fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
-		return false
+		//fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
+		//return false
 	}
 
 	return true
