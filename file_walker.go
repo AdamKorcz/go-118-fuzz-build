@@ -65,8 +65,14 @@ func (walker *FileWalker) cleanUp() {
 		if err != nil {
 			panic(err)
 		}
+		fmt.Println("renamed ", tmpFilePath, "to ", originalFilePath)
 	}
-	os.RemoveAll(walker.tmpDir)
+	fmt.Println("removing walker.tmpDir..")
+	err := os.RemoveAll(walker.tmpDir)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Removed walker.tmpDir")
 }
 
 // "path" is expected to be a file in a module
@@ -152,14 +158,14 @@ func (walker *FileWalker) addShimImport(path string, hasTestingT bool) error {
 	// Replace import path
 	//astutil.DeleteImport(fset, fCheck, "testing")
 	/*astutil.AddNamedImport(fset,
-		fCheck,
-		"_",
-		"testing")*/
+	fCheck,
+	"_",
+	"testing")*/
 	/*astutil.AddNamedImport(fset,
-		fCheck,
-		//customTestingName,
-		"testing",
-		"github.com/AdamKorcz/go-118-fuzz-build/testing")*/
+	fCheck,
+	//customTestingName,
+	"testing",
+	"github.com/AdamKorcz/go-118-fuzz-build/testing")*/
 	var buf bytes.Buffer
 	printer.Fprint(&buf, fset, fCheck)
 
@@ -177,13 +183,13 @@ func (walker *FileWalker) addShimImport(path string, hasTestingT bool) error {
 }
 
 func NewTestingTWalker(filepath string) *TestingTWalker {
-	return &TestingTWalker {
+	return &TestingTWalker{
 		file: filepath,
 	}
 }
 
 type TestingTWalker struct {
-	file string
+	file        string
 	hasTestingT bool
 }
 
@@ -390,14 +396,14 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 				continue
 			}
 			// Here we should evaluate if the package:
-			// 1. is a "_test" package 
+			// 1. is a "_test" package
 			// 2. is imported (ie. it is not the package that the fuzzer is in)
 			// 3. there are other packages in the folder for example a non-_test package
 			// If the answer is "yes" to all three questions, then we should continue here
 			if !shouldChangeTestPackage(imp, fuzzerPkg, fuzzerPath) {
 				continue
 			}
-			
+
 			fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
 			pkgsCopy = append(pkgsCopy, pack)
 			pkgsCopy, err = appendPkgImports(pack, fuzzerPkg, pkgsCopy, modulePath, fuzzerPath)
@@ -417,7 +423,7 @@ func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string
 	for i, _ := range imp.GoFiles {
 		if i == 0 {
 			continue
-		} 
+		}
 		if filepath.Dir(imp.GoFiles[i]) != filepath.Dir(imp.GoFiles[i-1]) {
 			panic("We have files outside of the package dir")
 		}

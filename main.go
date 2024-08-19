@@ -8,9 +8,9 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	//"path/filepath"
 	"strings"
 	"text/template"
-	"path/filepath"
 
 	"golang.org/x/tools/go/packages"
 )
@@ -141,26 +141,26 @@ func main() {
 	//fmt.Println("originalFiles: ", walker.originalFiles)
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
-	//	fmt.Println("rewriting", sourceFile)
+		//	fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile)
 	}
-	entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
-    if err != nil {
-        panic(err)
-    } 
-    //for _, e := range entries {
-    //        fmt.Println(e.Name())
-    //}
-    //fmt.Println("contents of fuzzer: ")
-    fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
-    if err != nil {
-    	panic(err)
-    }
-    //fmt.Println(string(fuzzerContents))
-    err = os.Chdir(cwd)
-    if err != nil {
-    	panic(err)
-    }
+	//entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
+	if err != nil {
+		panic(err)
+	}
+	//for _, e := range entries {
+	//        fmt.Println(e.Name())
+	//}
+	//fmt.Println("contents of fuzzer: ")
+	/*fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
+	  if err != nil {
+	  	panic(err)
+	  }*/
+	//fmt.Println(string(fuzzerContents))
+	err = os.Chdir(cwd)
+	if err != nil {
+		panic(err)
+	}
 	//return
 	//fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
 	//if err != nil {
@@ -179,7 +179,13 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to create temporary file:", err)
 	}
-	defer os.Remove(mainFile.Name())
+	defer func() {
+		fmt.Println("removing mainFile.Name()")
+		err = os.Remove(mainFile.Name())
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	type Data struct {
 		PkgPath      string
@@ -214,6 +220,7 @@ func main() {
 	}
 	args = append(args, buildFlags...)
 	args = append(args, mainFile.Name())
+	fmt.Println("Running go ", args)
 	cmd := exec.Command("go", args...)
 	//cmd := exec.Command("gotip", args...)
 	cmd.Stdout = os.Stdout
@@ -224,6 +231,7 @@ func main() {
 		panic(err)
 		log.Fatal("failed to build packages:", err)
 	}
+	fmt.Println("BUILT THE FUZZER")
 
 	/*newFile, err := os.Create(fuzzerFile)
 	if err != nil {
