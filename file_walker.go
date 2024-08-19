@@ -402,7 +402,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			// 3. there are other packages in the folder for example a non-_test package
 			// If the answer is "yes" to all three questions, then we should continue here
 			if !shouldChangeTestPackage(imp, fuzzerPkg, fuzzerPath) {
-				fmt.Println("Should not rewrite, ", fuzzerPkg, fuzzerPath)
+				fmt.Println("Should not rewrite, ", imp)
 				continue
 			}
 
