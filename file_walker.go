@@ -419,6 +419,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 
 func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string) bool {
 	if !strings.HasSuffix(imp.Name, "_test") {
+		fmt.Println("return here: ", imp.Name)
 		return false
 	}
 	// Get the filepath of the package
