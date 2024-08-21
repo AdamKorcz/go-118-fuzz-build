@@ -405,7 +405,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			fmt.Println("error loadPkg: ", err)
 			return pkgsCopy, err
 		}
-		fmt.Println("Len of loaded packages")
+		fmt.Println("Len of loaded packages: ", len(pkgsCopy))
 		for _, pack := range p {
 			// Here we should evaluate if the package:
 			// 1. is a "_test" package
