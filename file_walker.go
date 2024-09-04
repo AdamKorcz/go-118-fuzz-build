@@ -79,7 +79,7 @@ func (walker *FileWalker) cleanUp() {
 // that a fuzzer uses.
 func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// Check for files outside of the fuzzing module.
-	// This is quite late to catch it and should be done smarter
+	// This is quite late to catch it and should be done smarter and
 	// earlier in the process.
 	// This only catches an issue in the OSS-Fuzz env.
 	// We should essentially check if the file is outside of the module dir.
@@ -97,7 +97,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}
 	// Check ends in "_test".
 	// Could use "HasSuffix here instead"
-	if len(f.Name.Name) >= 5 && f.Name.Name[len(f.Name.Name)-5:] == "_test" {
+	if len(path) >= 8 && path[len(path)-8:] == "_test.go" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
 		}
