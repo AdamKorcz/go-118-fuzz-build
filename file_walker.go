@@ -363,9 +363,11 @@ func GetAllSourceFilesOfFile(modulePath, fuzzerFilePath string) ([]string, error
 		return files, err
 	}
 	for _, pkg := range pkgs {
-		fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
+		//fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
 		for _, file := range pkg.GoFiles {
-			fmt.Println("file in this pkg: ", file)
+			if strings.Contains(file, "pkg/fuzz") {
+				fmt.Println("file in this pkg: ", file)
+			}
 			// There may be files in the go cache. Ignore those
 			if strings.Contains(file, "/.cache/go-build") {
 				continue
