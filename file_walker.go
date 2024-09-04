@@ -83,6 +83,10 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// earlier in the process.
 	// This only catches an issue in the OSS-Fuzz env.
 	// We should essentially check if the file is outside of the module dir.
+	if path[len(path)-8:] == "_test.go" {
+	if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
+		return
+	}
 	if strings.Contains(path, "/root/.go/") {
 		return
 	}
@@ -97,7 +101,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}
 	// Check ends in "_test".
 	// Could use "HasSuffix here instead"
-	if len(path) >= 8 && path[len(path)-8:] == "_test.go" {
+	if len(f.Name.Name) >= 5 && f.Name.Name[len(f.Name.Name)-5:] == "_test" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
 		}
@@ -142,6 +146,9 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}
 	// rename test files from *_test.go to *_libFuzzer.go
 	if path[len(path)-8:] == "_test.go" {
+		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
+			return
+		}
 		newName := strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
 		err := os.Rename(path, newName)
 		if err != nil {
