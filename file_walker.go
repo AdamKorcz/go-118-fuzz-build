@@ -84,8 +84,9 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// This only catches an issue in the OSS-Fuzz env.
 	// We should essentially check if the file is outside of the module dir.
 	if path[len(path)-8:] == "_test.go" {
-	if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
-		return
+		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
+			return
+		}
 	}
 	if strings.Contains(path, "/root/.go/") {
 		return
