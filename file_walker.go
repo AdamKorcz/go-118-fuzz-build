@@ -166,7 +166,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(originalFileContents2))
+		fmt.Println("originalFileContents2", string(originalFileContents2))
 	}
 }
 
@@ -363,8 +363,9 @@ func GetAllSourceFilesOfFile(modulePath, fuzzerFilePath string) ([]string, error
 		return files, err
 	}
 	for _, pkg := range pkgs {
-		//fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
+		fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
 		for _, file := range pkg.GoFiles {
+			fmt.Println("file in this pkg: ", file)
 			// There may be files in the go cache. Ignore those
 			if strings.Contains(file, "/.cache/go-build") {
 				continue
