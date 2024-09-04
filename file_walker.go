@@ -437,6 +437,9 @@ func isStdLibPkg(importName string) bool {
 func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package, modulePath, fuzzerPath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
+		if strings.Contains(imp.PkgPath, "pkg/fuzz") {
+			fmt.Println("WE GOT THE FUZZING UTILS")
+		}
 		// We might have already loaded this import package
 		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
 			continue
@@ -475,6 +478,9 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			}
 
 			//fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
+			if strings.Contains(imp.PkgPath, "pkg/fuzz") {
+				fmt.Println("APPENDING THE FUZZING UTILS")
+			}
 			pkgsCopy = append(pkgsCopy, pack)
 			pkgsCopy, err = appendPkgImports(pack, fuzzerPkg, pkgsCopy, modulePath, fuzzerPath)
 			if err != nil {
