@@ -127,6 +127,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	ast.Walk(testingTWalker, fCheck)
 
 	if rewroteTestingFParams {
+		print("rewrote testingFparams in ", path)
 		err := walker.addShimImport(path, testingTWalker.hasTestingT)
 		if err != nil {
 			panic(err)
@@ -384,7 +385,7 @@ func getAllPackagesOfFile(modulePath, fuzzerFilePath string) ([]*packages.Packag
 	if len(pkgs) != 1 {
 		panic("there should only be one file here")
 	}
-	fmt.Println("appending pkg imports")
+	//fmt.Println("appending pkg imports")
 	fuzzerPkg := pkgs[0]
 	return appendPkgImports(pkgs[0], fuzzerPkg, pkgs, modulePath, fuzzerFilePath)
 }
@@ -438,7 +439,6 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 	for _, imp := range pkg.Imports {
 		// We might have already loaded this import package
 		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
-			fmt.Println("ALREADY has ", imp.PkgPath)
 			continue
 		}
 		// Check that the package is the same module
@@ -446,11 +446,9 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 		// can skip it if we don't have the modules
 		if imp.Module != nil && modulePath != "" {
 			if len(imp.Module.Path) < len(modulePath) {
-				fmt.Println("skipping1 ", imp.Module.Path)
 				continue
 			}
 			if imp.Module.Path != modulePath {
-				fmt.Println("skipping2 ", imp.Module.Path)
 				continue
 			}
 		}
@@ -458,13 +456,13 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			continue
 		}
 
-		fmt.Println("loading pkg: ", imp.PkgPath)
+		//fmt.Println("loading pkg: ", imp.PkgPath)
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
-			fmt.Println("error loadPkg: ", err)
+			//fmt.Println("error loadPkg: ", err)
 			return pkgsCopy, err
 		}
-		fmt.Println("Len of loaded packages: ", len(pkgsCopy))
+		//fmt.Println("Len of loaded packages: ", len(pkgsCopy))
 		for _, pack := range p {
 			// Here we should evaluate if the package:
 			// 1. is a "_test" package
@@ -476,7 +474,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 				continue
 			}
 
-			fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
+			//fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
 			pkgsCopy = append(pkgsCopy, pack)
 			pkgsCopy, err = appendPkgImports(pack, fuzzerPkg, pkgsCopy, modulePath, fuzzerPath)
 			if err != nil {
@@ -488,9 +486,9 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 }
 
 func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string) bool {
-	fmt.Println("imp.Name:::::::::::::", imp.Name)
+	//fmt.Println("imp.Name:::::::::::::", imp.Name)
 	if strings.HasSuffix(imp.Name, "_test") {
-		fmt.Println("return here: ", imp.Name)
+		//fmt.Println("return here: ", imp.Name)
 		return false
 	}
 	// Get the filepath of the package
