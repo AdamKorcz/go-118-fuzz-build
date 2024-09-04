@@ -161,11 +161,13 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
 	}
-	originalFileContents2, err := os.ReadFile(path)
-	if err != nil {
-		panic(err)
+	if strings.Contains(path, "pkg/fuzz") {
+		originalFileContents2, err := os.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println(string(originalFileContents2))
 	}
-	fmt.Println(string(originalFileContents2))
 }
 
 // Rewrites testing import of a single path
