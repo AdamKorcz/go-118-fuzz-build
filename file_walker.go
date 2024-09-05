@@ -225,7 +225,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
 	}*/
-	if strings.Equals(path, fuzzerPath) {
+	if strings.EqualFold(path, fuzzerPath) {
 		originalFileContents2, err := os.ReadFile(path)
 		if err != nil {
 			panic(err)
