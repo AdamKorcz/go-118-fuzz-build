@@ -83,6 +83,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// earlier in the process.
 	// This only catches an issue in the OSS-Fuzz env.
 	// We should essentially check if the file is outside of the module dir.
+	rewroteFile := false
 	if path[len(path)-8:] == "_test.go" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
@@ -95,16 +96,35 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// TODO: Check if it is a "_test" pkg outside of the fuzzers dir.
 	// If it is, then we should not rewrite it.
 	fset1 := token.NewFileSet()
-	f, err := parser.ParseFile(fset1, path, nil, parser.PackageClauseOnly)
+	//f, err := parser.ParseFile(fset1, path, nil, parser.PackageClauseOnly)
+	parsedFile, err := parser.ParseFile(fset1, path, nil, 0)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	// Check ends in "_test".
 	// Could use "HasSuffix here instead"
-	if len(f.Name.Name) >= 5 && f.Name.Name[len(f.Name.Name)-5:] == "_test" {
+	if len(parsedFile.Name.Name) >= 5 && parsedFile.Name.Name[len(parsedFile.Name.Name)-5:] == "_test" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
+		}
+	}
+
+	// If it is a non-_test.go file that imports "testing",
+	// we rewrite the testing param, since there is a high
+	// chance that this is a utility package for fuzzing
+	/*fsetCheck := token.NewFileSet()
+	fCheck, err := parser.ParseFile(fsetCheck, path, nil, parser.ImportsOnly)
+	if err != nil {
+		return err
+	}*/
+	for _, imp := range parsedFile.Imports {
+		if imp.Path.Value == "testing" {
+			astutil.DeleteImport(fset1, parsedFile, "testing")
+			astutil.AddImport(fset1,
+				fCheck,
+				"github.com/AdamKorcz/go-118-fuzz-build/testing")
+			rewroteFile = true
 		}
 	}
 
@@ -112,22 +132,65 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	if err != nil {
 		panic(err)
 	}
-	rewroteTestingFParams := walker.rewriteTestingFFunctionParams(path)
+	//rewroteTestingFParams := walker.rewriteTestingFFunctionParams(path)
 	// Here we should check if the file uses non-testing.F-related functions
 	// If it does, then the file should have both our shim import
 	// and the std lib "testing" import. If it doesn't then the file
 	// should only have our custom testing import
 	//usesNonFuzzTestingFuncs := something()
-	testingTWalker := NewTestingTWalker(path)
-	fset := token.NewFileSet()
+	//testingTWalker := NewTestingTWalker(path)
+	/*fset := token.NewFileSet()
 	fCheck, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
 		panic(err)
-	}
-	ast.Walk(testingTWalker, fCheck)
+	}*/
+	//ast.Walk(testingTWalker, parsedFile)
 
-	if rewroteTestingFParams {
-		print("rewrote testingFparams in ", path)
+	if rewroteFile {
+		f, err := os.CreateTemp(walker.tmpDir, "")
+		if err != nil {
+			panic(err)
+		}
+		_, err = f.Write(originalFileContents)
+		if err != nil {
+			panic(err)
+		}
+		if err = f.Close(); err != nil {
+			panic(err)
+		}
+		walker.originalFiles[path] = f.Name()
+
+		var buf bytes.Buffer
+		printer.Fprint(&buf, fset1, parsedFile)
+
+		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		f.WriteString(string(buf.Bytes()))
+
+		if !stringInSlice(path, walker.rewrittenFiles) {
+			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
+		}
+	}
+
+	if path[len(path)-8:] == "_test.go" {
+		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
+			return
+		}
+		newName := strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
+		err := os.Rename(path, newName)
+		if err != nil {
+			panic(err)
+		}
+		// Store the new name
+		if !stringInSlice(newName, walker.renamedTestFiles) {
+			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
+		}
+	}
+	/*if rewroteTestingFParams {
+		//print("rewrote testingFparams in ", path)
 		err := walker.addShimImport(path, testingTWalker.hasTestingT)
 		if err != nil {
 			panic(err)
@@ -145,9 +208,9 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			panic(err)
 		}
 		walker.originalFiles[path] = f.Name()
-	}
+	}*/
 	// rename test files from *_test.go to *_libFuzzer.go
-	if path[len(path)-8:] == "_test.go" {
+	/*if path[len(path)-8:] == "_test.go" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
 		}
@@ -160,7 +223,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if !stringInSlice(newName, walker.renamedTestFiles) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
-	}
+	}*/
 	if strings.Contains(path, "pkg/fuzz") {
 		originalFileContents2, err := os.ReadFile(path)
 		if err != nil {
@@ -223,7 +286,7 @@ func (walker *FileWalker) addShimImport(path string, hasTestingT bool) error {
 	return nil
 }
 
-func NewTestingTWalker(filepath string) *TestingTWalker {
+/*func NewTestingTWalker(filepath string) *TestingTWalker {
 	return &TestingTWalker{
 		file: filepath,
 	}
@@ -247,17 +310,17 @@ func (walker *TestingTWalker) Visit(n ast.Node) ast.Visitor {
 		}
 	}
 	return walker
-}
+}*/
 
 // Checks whether a fuzz test exists in a given file
-func (walker *FileWalker) rewriteTestingFFunctionParams(path string) bool {
-	fset := token.NewFileSet()
+func (walker *FileWalker) rewriteTestingFFunctionParams(parsedFile *token.FileSet) bool {
+	/*fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
 		panic(err)
-	}
+	}*/
 	updated := false
-	for _, decl := range f.Decls {
+	for _, decl := range parsedFile.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
 			for _, param := range funcDecl.Type.Params.List {
 				if paramType, ok := param.Type.(*ast.StarExpr); ok {
