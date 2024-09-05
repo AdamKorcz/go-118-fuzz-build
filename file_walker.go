@@ -122,7 +122,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if imp.Path.Value == "testing" {
 			astutil.DeleteImport(fset1, parsedFile, "testing")
 			astutil.AddImport(fset1,
-				fCheck,
+				parsedFile,
 				"github.com/AdamKorcz/go-118-fuzz-build/testing")
 			rewroteFile = true
 		}
@@ -163,12 +163,12 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		var buf bytes.Buffer
 		printer.Fprint(&buf, fset1, parsedFile)
 
-		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+		f2, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
-			return err
+			panic(err)
 		}
-		defer f.Close()
-		f.WriteString(string(buf.Bytes()))
+		defer f2.Close()
+		f2.WriteString(string(buf.Bytes()))
 
 		if !stringInSlice(path, walker.rewrittenFiles) {
 			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
@@ -313,12 +313,12 @@ func (walker *TestingTWalker) Visit(n ast.Node) ast.Visitor {
 }*/
 
 // Checks whether a fuzz test exists in a given file
-func (walker *FileWalker) rewriteTestingFFunctionParams(parsedFile *token.FileSet) bool {
-	/*fset := token.NewFileSet()
+/*func (walker *FileWalker) rewriteTestingFFunctionParams(parsedFile *token.FileSet) bool {
+	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
 		panic(err)
-	}*/
+	}
 	updated := false
 	for _, decl := range parsedFile.Decls {
 		if funcDecl, ok := decl.(*ast.FuncDecl); ok {
@@ -352,7 +352,7 @@ func (walker *FileWalker) rewriteTestingFFunctionParams(parsedFile *token.FileSe
 		}
 	}
 	return updated
-}
+}*/
 
 /*func (walker *FileWalker) RewriteAllImportedTestFiles(files []string) error {
 	for _, file := range files {
