@@ -120,7 +120,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}*/
 	for _, imp := range parsedFile.Imports {
 		fmt.Println("import : ", imp.Path.Value)
-		if imp.Path.Value == "testing" {
+		if imp.Path.Value == "\"testing\"" {
 			astutil.DeleteImport(fset1, parsedFile, "testing")
 			astutil.AddImport(fset1,
 				parsedFile,
