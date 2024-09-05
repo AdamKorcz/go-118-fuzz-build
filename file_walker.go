@@ -189,6 +189,13 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if !stringInSlice(newName, walker.renamedTestFiles) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
+		if strings.EqualFold(path, fuzzerPath) {
+			originalFileContents2, err := os.ReadFile(newName)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println("originalFileContents2", string(originalFileContents2))
+		}
 	}
 	/*if rewroteTestingFParams {
 		//print("rewrote testingFparams in ", path)
@@ -225,13 +232,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
 	}*/
-	if strings.EqualFold(path, fuzzerPath) {
-		originalFileContents2, err := os.ReadFile(path)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("originalFileContents2", string(originalFileContents2))
-	}
 }
 
 // Rewrites testing import of a single path
