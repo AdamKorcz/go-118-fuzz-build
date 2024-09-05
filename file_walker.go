@@ -173,6 +173,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if !stringInSlice(path, walker.rewrittenFiles) {
 			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 		}
+		fmt.Println("Overwrote ", path)
 	}
 
 	if path[len(path)-8:] == "_test.go" {
@@ -224,7 +225,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
 	}*/
-	if strings.Contains(path, "pkg/fuzz") {
+	if strings.Equals(path, fuzzerPath) {
 		originalFileContents2, err := os.ReadFile(path)
 		if err != nil {
 			panic(err)
