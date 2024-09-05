@@ -119,13 +119,14 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		return err
 	}*/
 	for _, imp := range parsedFile.Imports {
-		fmt.Println("import : ", imp.Path.Value)
+		//fmt.Println("import : ", imp.Path.Value)
 		if imp.Path.Value == "\"testing\"" {
 			astutil.DeleteImport(fset1, parsedFile, "testing")
 			astutil.AddImport(fset1,
 				parsedFile,
 				"github.com/AdamKorcz/go-118-fuzz-build/testing")
 			rewroteFile = true
+			fmt.Println("rewrote ", path)
 		}
 	}
 
