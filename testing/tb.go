@@ -2,21 +2,21 @@ package testing
 
 type TB struct{}
 
-func (c *B) Cleanup(func())                    {}
-func (c *B) Error(args ...any)                 {}
-func (c *B) Errorf(format string, args ...any) {}
-func (c *B) Fail()                             {}
-func (c *B) FailNow()                          {}
-func (c *B) Failed() bool                      {}
-func (c *B) Fatal(args ...any)                 {}
-func (c *B) Fatalf(format string, args ...any) {}
-func (c *B) Helper()                           {}
-func (c *B) Log(args ...any)                   {}
-func (c *B) Logf(format string, args ...any)   {}
-func (c *B) Name() string                      { return "Fuzz" }
-func (c *B) Setenv(key, value string)          {}
-func (c *B) Skip(args ...any)                  {}
-func (c *B) SkipNow()                          {}
-func (c *B) Skipf(format string, args ...any)  {}
-func (c *B) Skipped() bool                     {}
-func (c *B) TempDir() string                   {}
+func (c *TB) Cleanup(func())                    {}
+func (c *TB) Error(args ...any)                 {}
+func (c *TB) Errorf(format string, args ...any) {}
+func (c *TB) Fail()                             {}
+func (c *TB) FailNow()                          {}
+func (c *TB) Failed() bool                      {}
+func (c *TB) Fatal(args ...any)                 {}
+func (c *TB) Fatalf(format string, args ...any) {}
+func (c *TB) Helper()                           {}
+func (c *TB) Log(args ...any)                   {}
+func (c *TB) Logf(format string, args ...any)   {}
+func (c *TB) Name() string                      { return "Fuzz" }
+func (c *TB) Setenv(key, value string)          {}
+func (c *TB) Skip(args ...any)                  {}
+func (c *TB) SkipNow()                          {}
+func (c *TB) Skipf(format string, args ...any)  {}
+func (c *TB) Skipped() bool                     {}
+func (c *TB) TempDir() string                   {}
