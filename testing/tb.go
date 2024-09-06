@@ -7,7 +7,7 @@ func (c *TB) Error(args ...any)                 {}
 func (c *TB) Errorf(format string, args ...any) {}
 func (c *TB) Fail()                             {}
 func (c *TB) FailNow()                          {}
-func (c *TB) Failed() bool                      {}
+func (c *TB) Failed() bool                      { return false }
 func (c *TB) Fatal(args ...any)                 {}
 func (c *TB) Fatalf(format string, args ...any) {}
 func (c *TB) Helper()                           {}
@@ -18,5 +18,5 @@ func (c *TB) Setenv(key, value string)          {}
 func (c *TB) Skip(args ...any)                  {}
 func (c *TB) SkipNow()                          {}
 func (c *TB) Skipf(format string, args ...any)  {}
-func (c *TB) Skipped() bool                     {}
-func (c *TB) TempDir() string                   {}
+func (c *TB) Skipped() bool                     { return true }
+func (c *TB) TempDir() string                   { return "FUZZ" }
