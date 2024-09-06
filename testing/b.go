@@ -4,7 +4,9 @@ import (
 	"time"
 )
 
-type B struct{}
+type B struct{
+	N int
+}
 
 func (c *B) Cleanup(f func())                    {}
 func (b *B) Elapsed() time.Duration              { return time.Since(time.Now()) }
