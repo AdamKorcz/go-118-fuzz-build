@@ -83,6 +83,12 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	// earlier in the process.
 	// This only catches an issue in the OSS-Fuzz env.
 	// We should essentially check if the file is outside of the module dir.
+
+	// Let's not rewrite dependencies in "/root/go/pkg/mod" for now.
+	// They are a challenge in itself.
+	if strings.HasPrefix(path, "/root/go/pkg/mod") { 
+		return
+	}
 	rewroteFile := false
 	if path[len(path)-8:] == "_test.go" {
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
@@ -90,6 +96,11 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		}
 	}
 	if strings.Contains(path, "/root/.go/") {
+		return
+	}
+
+	//TODO: CHECK IF THIS IS IN OUR go-118-fuzz-build module in a better way
+	if strings.Contains(path, "go-118-fuzz-build/testing"){
 		return
 	}
 
@@ -119,14 +130,12 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		return err
 	}*/
 	for _, imp := range parsedFile.Imports {
-		//fmt.Println("import : ", imp.Path.Value)
 		if imp.Path.Value == "\"testing\"" {
 			astutil.DeleteImport(fset1, parsedFile, "testing")
 			astutil.AddImport(fset1,
 				parsedFile,
 				"github.com/AdamKorcz/go-118-fuzz-build/testing")
 			rewroteFile = true
-			fmt.Println("rewrote ", path)
 		}
 	}
 
@@ -175,7 +184,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if !stringInSlice(path, walker.rewrittenFiles) {
 			walker.rewrittenFiles = append(walker.rewrittenFiles, path)
 		}
-		fmt.Println("Overwrote ", path)
 	}
 
 	if path[len(path)-8:] == "_test.go" {
@@ -196,7 +204,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("originalFileContents2", string(originalFileContents2))
 		}
 	}
 	/*if rewroteTestingFParams {
@@ -238,7 +245,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 
 // Rewrites testing import of a single path
 func (walker *FileWalker) addShimImport(path string, hasTestingT bool) error {
-	//fmt.Println("Rewriting ", path)
 	fset := token.NewFileSet()
 	fCheck, err := parser.ParseFile(fset, path, nil, 0)
 	if err != nil {
@@ -429,11 +435,7 @@ func GetAllSourceFilesOfFile(modulePath, fuzzerFilePath string) ([]string, error
 		return files, err
 	}
 	for _, pkg := range pkgs {
-		//fmt.Println("PPPPPPPPPKKKKKKKKKKKKKGGGGGGGGGGGG: ", pkg.Name)
 		for _, file := range pkg.GoFiles {
-			if strings.Contains(file, "pkg/fuzz") {
-				fmt.Println("file in this pkg: ", file)
-			}
 			// There may be files in the go cache. Ignore those
 			if strings.Contains(file, "/.cache/go-build") {
 				continue
@@ -461,7 +463,6 @@ func getAllPackagesOfFile(modulePath, fuzzerFilePath string) ([]*packages.Packag
 	if len(pkgs) != 1 {
 		panic("there should only be one file here")
 	}
-	//fmt.Println("appending pkg imports")
 	fuzzerPkg := pkgs[0]
 	return appendPkgImports(pkgs[0], fuzzerPkg, pkgs, modulePath, fuzzerFilePath)
 }
@@ -482,7 +483,12 @@ func isStdLibPkg(importName string) bool {
 		return true
 	}
 	if len(importName) >= 2 && importName[:2] == "go" {
-		return true
+		// Some modules start their names with "go."
+		// and these are of course not std lib
+		if importName == "go" || (len(importName) >= 3 && importName[:3] == "go/") {
+			return true
+		}
+		return false
 	}
 	if len(importName) >= 8 && importName[:8] == "encoding" {
 		return true
@@ -513,9 +519,9 @@ func isStdLibPkg(importName string) bool {
 func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package, modulePath, fuzzerPath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
-		if strings.Contains(imp.PkgPath, "pkg/fuzz") {
+		/*if strings.Contains(imp.PkgPath, "pkg/fuzz") {
 			fmt.Println("WE GOT THE FUZZING UTILS")
-		}
+		}*/
 		// We might have already loaded this import package
 		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
 			continue
@@ -523,22 +529,26 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 		// Check that the package is the same module
 		// This is a performance optimization, so we
 		// can skip it if we don't have the modules
-		if imp.Module != nil && modulePath != "" {
+		/*if imp.Module != nil && modulePath != "" {
 			if len(imp.Module.Path) < len(modulePath) {
 				continue
 			}
 			if imp.Module.Path != modulePath {
 				continue
 			}
-		}
+		}*/
 		if isStdLibPkg(imp.PkgPath) {
 			continue
 		}
-
-		//fmt.Println("loading pkg: ", imp.PkgPath)
+		// Could we make some more static checks here to speed up things?
 		p, err := loadPkg(imp.PkgPath)
 		if err != nil {
-			//fmt.Println("error loadPkg: ", err)
+			// We don't do anything in this case, since this
+			// may happen for modules we don't have on the
+			// system. In most cases, it doesn't matter, so
+			// let's optimize when this is actually a pain
+			// for someone.
+			continue
 			return pkgsCopy, err
 		}
 		//fmt.Println("Len of loaded packages: ", len(pkgsCopy))
@@ -554,9 +564,6 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			}
 
 			//fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
-			if strings.Contains(imp.PkgPath, "pkg/fuzz") {
-				fmt.Println("APPENDING THE FUZZING UTILS")
-			}
 			pkgsCopy = append(pkgsCopy, pack)
 			pkgsCopy, err = appendPkgImports(pack, fuzzerPkg, pkgsCopy, modulePath, fuzzerPath)
 			if err != nil {
@@ -583,10 +590,10 @@ func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string
 		}
 	}
 	// If the import dir path is not the same as the fuzzers, then we shouldn't rewrite it
-	if filepath.Dir(imp.GoFiles[0]) != filepath.Dir(fuzzerPath) {
-		//fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
-		//return false
-	}
+	//if filepath.Dir(imp.GoFiles[0]) != filepath.Dir(fuzzerPath) {
+	//	//fmt.Println("returning here. filpath.Dir(Imp.Gofiles[0]) = ", filepath.Dir(imp.GoFiles[0]), "filepath.Dir(fuzzerPath) = ", filepath.Dir(fuzzerPath))
+	//	//return false
+	//}
 
 	return true
 }
