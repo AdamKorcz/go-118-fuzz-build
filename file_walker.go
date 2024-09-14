@@ -86,7 +86,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 
 	// Let's not rewrite dependencies in "/root/go/pkg/mod" for now.
 	// They are a challenge in itself.
-	if strings.HasPrefix(path, "/root/go/pkg/mod") { 
+	if strings.HasPrefix(path, "/root/go/pkg/mod") {
 		return
 	}
 	rewroteFile := false
@@ -100,7 +100,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}
 
 	//TODO: CHECK IF THIS IS IN OUR go-118-fuzz-build module in a better way
-	if strings.Contains(path, "go-118-fuzz-build/testing"){
+	if strings.Contains(path, "go-118-fuzz-build/testing") {
 		return
 	}
 
@@ -198,12 +198,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		// Store the new name
 		if !stringInSlice(newName, walker.renamedTestFiles) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
-		}
-		if strings.EqualFold(path, fuzzerPath) {
-			originalFileContents2, err := os.ReadFile(newName)
-			if err != nil {
-				panic(err)
-			}
 		}
 	}
 	/*if rewroteTestingFParams {
