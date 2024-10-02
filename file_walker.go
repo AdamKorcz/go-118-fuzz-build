@@ -27,6 +27,10 @@ var (
 	}
 )
 
+type Overlay struct {
+	Replace: map[string]string
+}
+
 type FileWalker struct {
 	renamedFiles     map[string]string
 	renamedTestFiles []string
