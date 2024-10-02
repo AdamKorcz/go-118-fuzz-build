@@ -147,12 +147,55 @@ func main() {
 	for _, sourceFile := range allFiles {
 		walker.RewriteFile(sourceFile, fuzzerPath)
 	}
-	if err != nil {
-		panic(err)
-	}
 	err = os.Chdir(cwd)
 	if err != nil {
 		panic(err)
+	}
+
+	// Merge overlay maps
+	newOverlayMap := &Overlay{}
+	if *flagOverlay != "" {
+		b, err := os.ReadFile(*flagOverlay)
+		if err != nil {
+			panic(fmt.Sprintf("Could not find overlay file %s", err.Error()))
+		}
+		usersOverlayMap := &Overlay{}
+		err = json.Unmarshal(b, usersOverlayMap)
+		if err != nil {
+			panic(fmt.Sprintf("Could not read overlay file %s", err.Error()))
+		}
+		for k, v := range usersOverlayMap.Replace {
+		    newOverlayMap.Replace[k] = v
+		}
+	}
+	for k, v := range walker.overlayMap.Replace {
+	    newOverlayMap.Replace[k] = v
+	}
+	if sanitizer == "coverage" {
+		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
+		if err != nil {
+			panic(err)
+		}
+		newOverlayMap.Replace[coverageFilePath] = tempFile
+		defer os.Remove(tempFile)
+	}
+	if len(newOverlayMap.Replace) > 0{
+		overlayFile, err := os.CreateTemp("", "ossFuzzOverlayFile.json")
+		if err != nil {
+			panic(err)
+		}
+		overlayJson, err := json.Marshal(newOverlayMap)
+		if err != nil {
+			panic(err)
+		}
+		defer os.Remove(overlayFile.Name())
+		if _, err := overlayFile.Write(overlayJson); err != nil {
+			overlayFile.Close()
+			panic(err)
+		}
+		overlayFile.Close()
+
+		buildFlags = append(buildFlags, "-overlay", overlayFile.Name())		
 	}
 
 	if sanitizer == "address" {
@@ -189,9 +232,6 @@ func main() {
 		}
 
 		args := []string{"build", "-o", out}
-		if *flagOverlay != "" {
-			buildFlags = append(buildFlags, "-overlay", *flagOverlay)
-		}
 		args = append(args, buildFlags...)
 		args = append(args, mainFile.Name())
 		fmt.Println("Running go ", args)
@@ -205,43 +245,11 @@ func main() {
 		}
 	} else {
 		// coverage sanitizer
-
-		// 1. Create a test in the same dir as the fuzz func
-		// 2. Get the name right in the test. DONE
-		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
-		if err != nil {
-			panic(err)
-		}
-		defer os.Remove(tempFile)
-
-		overlayMap := &Overlay{
-			Replace: map[string]string {
-				coverageFilePath: tempFile,
-			},
-		}
-		overlayJson, err := json.Marshal(overlayMap)
-		if err != nil {
-			panic(err)
-		}
-		overlayFile, err := os.CreateTemp("", "overlay.json")
-		if err != nil {
-			panic(err)
-		}
-		defer os.Remove(overlayFile.Name())
-		if _, err := overlayFile.Write(overlayJson); err != nil {
-			overlayFile.Close()
-			panic(err)
-		}
-		overlayFile.Close()
-
-
-
 		// 3. Compile it with: https://github.com/google/oss-fuzz/blob/690b4ebae2e7dcf69bde5bfcbf4c668f8f177ca0/infra/base-images/base-builder/compile_go_fuzzer#L60
 
 		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
 		
 		args := []string{"test", "-run", "TestFuzzCorpus",
-			 "-overlay", overlayFile.Name(),
 			"-v", *flagTags,
 			"-coverpkg", "./...",
 			"-c", "-o", outPath}

@@ -197,10 +197,6 @@ func TestCoverageFileContents(t *testing.T) {
 	}
 }
 
-type Overlay struct {
-	Replace map[string]string
-}
-
 func TestCompileCoverageFile(t *testing.T) {
 	fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
