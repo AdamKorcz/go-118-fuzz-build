@@ -152,6 +152,8 @@ func main() {
 		panic(err)
 	}
 
+	overlayArgs := make([]string, 0)
+
 	// Merge overlay maps
 	newOverlayMap := &Overlay{}
 	if *flagOverlay != "" {
@@ -194,8 +196,7 @@ func main() {
 			panic(err)
 		}
 		overlayFile.Close()
-
-		buildFlags = append(buildFlags, "-overlay", overlayFile.Name())		
+		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
 	}
 
 	if sanitizer == "address" {
@@ -233,6 +234,9 @@ func main() {
 
 		args := []string{"build", "-o", out}
 		args = append(args, buildFlags...)
+		if len(overlayArgs) > 0 {
+			args = append(args, overlayArgs...)
+		}
 		args = append(args, mainFile.Name())
 		fmt.Println("Running go ", args)
 		cmd := exec.Command("go", args...)
@@ -253,6 +257,9 @@ func main() {
 			"-v", *flagTags,
 			"-coverpkg", "./...",
 			"-c", "-o", outPath}
+		if len(overlayArgs) > 0 {
+			args = append(args, overlayArgs...)
+		}
 		cmd := exec.Command("go", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
