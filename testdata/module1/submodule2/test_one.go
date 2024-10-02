@@ -1,3 +1,3 @@
 package submodule2
 
-A = "A"
+var A = "A"

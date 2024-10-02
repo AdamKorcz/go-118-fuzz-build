@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"go/token"
@@ -8,17 +9,26 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	//"path/filepath"
+	"path/filepath"
 	"strings"
 	"text/template"
 
 	"golang.org/x/tools/go/packages"
 )
 
+type Data struct {
+	PkgPath      string
+	Func         string
+	Declarations string
+	FuzzerParams string
+	PkgName      string
+}
+
 var (
-	flagFunc = flag.String("func", "Fuzz", "fuzzer entry point")
-	flagO    = flag.String("o", "", "output file")
-	flagPath = flag.String("abs_path", "", "absolute path to fuzzer")
+	flagFunc      = flag.String("func", "Fuzz", "fuzzer entry point")
+	flagO         = flag.String("o", "", "output file")
+	flagPath      = flag.String("abs_path", "", "absolute path to fuzzer")
+	flagSanitizer = flag.String("sanitizer", "address", "The sanitizer to compile the target with. Either 'address' or 'coverage'")
 
 	flagRace    = flag.Bool("race", false, "enable data race detection")
 	flagTags    = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
@@ -79,6 +89,7 @@ func main() {
 	if strings.Contains(path, "...") {
 		log.Fatal("package path must not contain ... wildcards")
 	}
+	sanitizer := *flagSanitizer
 
 	include = strings.Split(*flagInclude, ",")
 	ignore = []string{
@@ -107,11 +118,12 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load packages:", err)
 	}
+	fuzzerPackage := pkgs[0]
 	var modulePath string
-	if pkgs[0].Module == nil {
+	if fuzzerPackage.Module == nil {
 		modulePath = ""
 	} else {
-		modulePath = pkgs[0].Module.Path
+		modulePath = fuzzerPackage.Module.Path
 	}
 	visit := func(pkg *packages.Package) {
 		if !shouldInstrument(pkg.PkgPath) {
@@ -122,127 +134,147 @@ func main() {
 	if packages.PrintErrors(pkgs) != 0 {
 		os.Exit(1)
 	}
-	/*if len(pkgs) != 1 {
-		log.Fatal("package path matched multiple packages")
-	}*/
-	//fmt.Println("main.go line 119 path: ", path, "pkgPath: ", pkgs[0].PkgPath)
-	fuzzerPath, err := getPathOfFuzzFile(pkgs[0].PkgPath, *flagFunc, buildFlags)
+	fuzzerPath, err := getAbsPathOfFuzzFile(fuzzerPackage.PkgPath, *flagFunc, buildFlags)
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Println("path: ", fuzzerPath)
 	allFiles, err := GetAllSourceFilesOfFile(modulePath, fuzzerPath)
 	if err != nil {
 		panic(err)
 	}
-	//fmt.Println(allFiles)
 	walker := NewFileWalker()
-	//fmt.Println("tmpDir: ", walker.tmpDir)
-	//fmt.Println("originalFiles: ", walker.originalFiles)
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
-		//	fmt.Println("rewriting", sourceFile)
 		walker.RewriteFile(sourceFile, fuzzerPath)
 	}
-	//entries, err := os.ReadDir(filepath.Dir(fuzzerPath))
 	if err != nil {
 		panic(err)
 	}
-	//for _, e := range entries {
-	//        fmt.Println(e.Name())
-	//}
-	//fmt.Println("contents of fuzzer: ")
-	/*fuzzerContents, err := os.ReadFile(filepath.Join(filepath.Dir(fuzzerPath), "fuzz_libFuzzer.go"))
-	  if err != nil {
-	  	panic(err)
-	  }*/
-	//fmt.Println(string(fuzzerContents))
 	err = os.Chdir(cwd)
 	if err != nil {
 		panic(err)
 	}
-	//return
-	//fuzzerFile, originalFuzzContents, err := rewriteTestingImports(pkgs, *flagFunc)
-	//if err != nil {
-	//	panic(err)
-	//}
-	//os.Remove(fuzzerFile)
 
-	pkg := pkgs[0]
+	if sanitizer == "address" {
+		importPath := fuzzerPackage.PkgPath
+		if strings.HasPrefix(importPath, "_/") {
+			importPath = path
+		}
 
-	importPath := pkg.PkgPath
-	if strings.HasPrefix(importPath, "_/") {
-		importPath = path
-	}
+		mainFile, err := ioutil.TempFile(".", "main.*.go")
+		if err != nil {
+			log.Fatal("failed to create temporary file:", err)
+		}
+		defer func() {
+			fmt.Println("removing mainFile.Name()")
+			err = os.Remove(mainFile.Name())
+			if err != nil {
+				panic(err)
+			}
+		}()
+		err = mainTmpl.Execute(mainFile, &Data{
+			PkgPath: importPath,
+			Func:    *flagFunc,
+		})
+		if err != nil {
+			log.Fatal("failed to execute template:", err)
+		}
+		if err := mainFile.Close(); err != nil {
+			log.Fatal(err)
+		}
 
-	mainFile, err := ioutil.TempFile(".", "main.*.go")
-	if err != nil {
-		log.Fatal("failed to create temporary file:", err)
-	}
-	defer func() {
-		fmt.Println("removing mainFile.Name()")
-		err = os.Remove(mainFile.Name())
+		out := *flagO
+		if out == "" {
+			out = fuzzerPackage.Name + "-fuzz.a"
+		}
+
+		args := []string{"build", "-o", out}
+		if *flagOverlay != "" {
+			buildFlags = append(buildFlags, "-overlay", *flagOverlay)
+		}
+		args = append(args, buildFlags...)
+		args = append(args, mainFile.Name())
+		fmt.Println("Running go ", args)
+		cmd := exec.Command("go", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			panic(err)
+			log.Fatal("failed to build packages:", err)
+		}
+	} else {
+		// coverage sanitizer
+
+		// 1. Create a test in the same dir as the fuzz func
+		// 2. Get the name right in the test. DONE
+		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
 		if err != nil {
 			panic(err)
 		}
-	}()
+		defer os.Remove(tempFile)
 
-	type Data struct {
-		PkgPath      string
-		Func         string
-		Declarations string
-		FuzzerParams string
-	}
-	/*err = mainTmpl.Execute(os.Stdout, &Data{
-		PkgPath: importPath,
-		Func:    *flagFunc,
-	})*/
-	//return
-	err = mainTmpl.Execute(mainFile, &Data{
-		PkgPath: importPath,
-		Func:    *flagFunc,
-	})
-	if err != nil {
-		log.Fatal("failed to execute template:", err)
-	}
-	if err := mainFile.Close(); err != nil {
-		log.Fatal(err)
-	}
+		overlayMap := &Overlay{
+			Replace: map[string]string {
+				coverageFilePath: tempFile,
+			},
+		}
+		overlayJson, err := json.Marshal(overlayMap)
+		if err != nil {
+			panic(err)
+		}
+		overlayFile, err := os.CreateTemp("", "overlay.json")
+		if err != nil {
+			panic(err)
+		}
+		defer os.Remove(overlayFile.Name())
+		if _, err := overlayFile.Write(overlayJson); err != nil {
+			overlayFile.Close()
+			panic(err)
+		}
+		overlayFile.Close()
 
-	out := *flagO
-	if out == "" {
-		out = pkg.Name + "-fuzz.a"
-	}
 
-	args := []string{"build", "-o", out}
-	if *flagOverlay != "" {
-		buildFlags = append(buildFlags, "-overlay", *flagOverlay)
-	}
-	args = append(args, buildFlags...)
-	args = append(args, mainFile.Name())
-	fmt.Println("Running go ", args)
-	cmd := exec.Command("go", args...)
-	//cmd := exec.Command("gotip", args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	//fmt.Println("running cmd.Run()")
 
-	if err := cmd.Run(); err != nil {
-		panic(err)
-		log.Fatal("failed to build packages:", err)
+		// 3. Compile it with: https://github.com/google/oss-fuzz/blob/690b4ebae2e7dcf69bde5bfcbf4c668f8f177ca0/infra/base-images/base-builder/compile_go_fuzzer#L60
+
+		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
+		
+		args := []string{"test", "-run", "TestFuzzCorpus",
+			 "-overlay", overlayFile.Name(),
+			"-v", *flagTags,
+			"-coverpkg", "./...",
+			"-c", "-o", outPath}
+		cmd := exec.Command("go", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			panic(err)
+			log.Fatal("failed to build packages:", err)
+		}
+
+		// 4. Clean up test filen.
+
 	}
 	fmt.Println("BUILT THE FUZZER")
+}
 
-	/*newFile, err := os.Create(fuzzerFile)
+// Returns the path to the coverage test and the temp file. The user should add
+// this to the overlay map with "coverageFilePath":f.Name()"
+func createCoverageRunner(fuzzerPath, flagFunc, fuzzerPackageName string) (string, string, error) {
+	pathForCoverageTest := filepath.Dir(fuzzerPath)
+	coverageFilePath := filepath.Join(pathForCoverageTest, "oss_fuzz_coverage_test.go")
+	f, err := os.CreateTemp("", "coverageFile")
 	if err != nil {
-		panic(err)
+		return coverageFilePath, "",err
 	}
-	defer newFile.Close()
-	_, err = newFile.Write(originalFuzzContents)
-	if err != nil {
-		panic(err)
-	}
-	os.Remove(fuzzerFile + "_fuzz.go")*/
+	defer f.Close()
+	err = coverageTmpl.Execute(f, &Data{
+		Func:    flagFunc,
+		PkgName: fuzzerPackageName,
+	})
+	return coverageFilePath, f.Name(), nil
 }
 
 // Packages that match one of the include patterns (default is include all packages)
@@ -289,14 +321,13 @@ import "C"
 //export LLVMFuzzerTestOneInput
 func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
 	s := (*[1<<30]byte)(unsafe.Pointer(data))[:size:size]
-	//target.{{.Func}}(s)
 	defer catchPanics()
 	LibFuzzer{{.Func}}(s)
 	return 0
 }
 
 func LibFuzzer{{.Func}}(data []byte) int {
-	fuzzer := &testing.F{Data:data, T:testing.NewT()}
+	fuzzer := testing.NewF(data)
 	defer fuzzer.CleanupTempDirs()
 	target.{{.Func}}(fuzzer)
 	return 1
@@ -322,5 +353,93 @@ func catchPanics() {
 }
 
 func main() {
+}
+`))
+
+var coverageTmpl = template.Must(template.New("fuzz_coverage_report_test").Parse(`
+
+package {{.PkgName}}
+
+import (
+	"io/fs"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strings"
+	"testing"
+	customTesting "github.com/AdamKorcz/go-118-fuzz-build/testing"
+)
+
+func TestFuzzCorpus(t *testing.T) {
+	dir := os.Getenv("FUZZ_CORPUS_DIR")
+	if dir == "" {
+		t.Logf("No fuzzing corpus directory set")
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			var err string
+			switch r.(type) {
+			case string:
+				err = r.(string)
+			case runtime.Error:
+				err = r.(runtime.Error).Error()
+			case error:
+				err = r.(error).Error()
+			}
+			if strings.Contains(err, "GO-FUZZ-BUILD-PANIC") {
+				return
+			} else {
+				panic(err)
+			}
+		}
+	}()
+	profname := os.Getenv("FUZZ_PROFILE_NAME")
+	if profname != "" {
+		f, err := os.Create(profname + ".cpu.prof")
+		if err != nil {
+			t.Logf("error creating profile file %s\n", err)
+		} else {
+			_ = pprof.StartCPUProfile(f)
+		}
+	}
+	_, err := ioutil.ReadDir(dir)
+	if err != nil {
+		t.Logf("Not fuzzing corpus directory %s", err)
+		return
+	}
+	// recurse for regressions subdirectory
+	err = filepath.Walk(dir, func(fname string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		data, err := ioutil.ReadFile(fname)
+		if err != nil {
+			t.Error("Failed to read corpus file", err)
+			return err
+		}
+		fuzzer := testing.NewF(data)
+		defer func(){
+			fuzzer.CleanupTempDirs()
+		}()
+		{{.Func}}(fuzzer)
+		return nil
+	})
+	if err != nil {
+		t.Error("Failed to run corpus", err)
+	}
+	if profname != "" {
+		pprof.StopCPUProfile()
+		f, err := os.Create(profname + ".heap.prof")
+		if err != nil {
+			t.Logf("error creating heap profile file %s\n", err)
+		}
+		if err = pprof.WriteHeapProfile(f); err != nil {
+			t.Logf("error writing heap profile file %s\n", err)
+		}
+		f.Close()
+	}
 }
 `))

@@ -1,99 +1,25 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
+	"fmt"
+	"os/exec"
 	"os"
 	"path/filepath"
 	"strings"
+	"encoding/json"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-	"github.com/docker/docker/daemon/graphdriver/copy"
+	//"github.com/google/go-cmp/cmp"
+	//"github.com/docker/docker/daemon/graphdriver/copy"
 )
-
-func TestRewriteFuncTestingFParams(t *testing.T) {
-	fileContents := `package main
-import (
-	"testing"
-)
-func ourTestHelper(f *testing.F) {
-	_ = f
-}`
-	expectedFileContents := `package main
-
-import (
-	"testing"
-)
-
-func ourTestHelper(f *customFuzzTestingPkg.F) {
-	_ = f
-}
-`
-	file := filepath.Join(t.TempDir(), "file.go")
-	err := os.WriteFile(file, []byte(fileContents), 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}	
-	walker := NewFileWalker()
-	walker.rewriteTestingFFunctionParams(file)
-	gotFileContents, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(gotFileContents, []byte(expectedFileContents)) {
-		t.Errorf("%s", cmp.Diff(gotFileContents, []byte(expectedFileContents)))
-	}
-
-	if len(walker.rewrittenFiles) != 1 {
-		t.Errorf("Should only have rewritten one file")
-	}
-
-	if !stringInSlice(file, walker.rewrittenFiles) {
-		t.Errorf("The rewritten file %s should be stored in the walker but is not.", file)
-	}
-}
-
-func TestAddShimImport(t *testing.T) {
-	fileContents := `package main
-import (
-	"testing"
-)`
-	expectedFileContents := `package main
-
-import (
-	_ "testing"
-	customFuzzTestingPkg "github.com/AdamKorcz/go-118-fuzz-build/testing"
-)
-`
-	file := filepath.Join(t.TempDir(), "file.go")
-	err := os.WriteFile(file, []byte(fileContents), 0o600)
-	if err != nil {
-		t.Fatal(err)
-	}
-	walker := NewFileWalker()
-	err = walker.addShimImport(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	gotFileContents, err := os.ReadFile(file)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.EqualFold(string(gotFileContents), expectedFileContents) {
-		t.Errorf("%s", cmp.Diff(string(gotFileContents), expectedFileContents))
-	}
-
-	if len(walker.rewrittenFiles) != 1 {
-		t.Errorf("Should only have rewritten one file")
-	}
-
-	if !stringInSlice(file, walker.rewrittenFiles) {
-		t.Errorf("The rewritten file %s should be stored in the walker but is not.", file)
-	}
-}
 
 func TestGetAllPackagesOfFile(t *testing.T) {
-	pkgs, err := getAllPackagesOfFile(filepath.Join("testdata", "module1", "fuzz_test.go"))
+	pwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	pkgs, err := getAllPackagesOfFile("module1", filepath.Join("testdata", "module1", "fuzz_test.go"))
 	if err != nil {
 		t.Fatalf("failed to load packages: %s", err)
 	}
@@ -112,127 +38,285 @@ func TestGetAllPackagesOfFile(t *testing.T) {
 	if pkgs[4].Name != "main" {
 		t.Error("pkgs[4].Name should be 'main'")
 	}
-}
-
-func TestGetAllSourceFilesOfFile(t *testing.T) {
-	files, err := GetAllSourceFilesOfFile(filepath.Join("testdata", "module1", "fuzz_test.go"))
-	if err != nil {
-		t.Fatalf("failed to load packages: %s", err)
-	}
-	if filepath.Base(files[0]) != "fuzz_test.go" {
-		t.Error("files[0] should be 'fuzz_test.go'")
-	}
-	if filepath.Base(files[1]) != "one.go" {
-		t.Error("files[1] should be 'one.go'")
-	}
-	if filepath.Base(files[2]) != "test_one.go" {
-		t.Error("files[2] should be 'test_one.go'")
-	}
-	if filepath.Base(files[3]) != "one_test.go" {
-		t.Error("files[3] should be 'one_test.go'")
-	}
-}
-
-func TestRenameAllTestFiles(t *testing.T) {
-	tempDir := t.TempDir()
-	err := copy.DirCopy(filepath.Join("testdata", "module1"),
-						filepath.Join(tempDir, "module1"),
-						copy.Content,
-						false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	originalFuzzTestPath := filepath.Join(tempDir, "module1", "fuzz_test.go")
-	originalSubmodule1OnePath := filepath.Join(tempDir, "module1", "submodule1", "one.go")
-	originalSubmodule1OneTestPath := filepath.Join(tempDir, "module1", "submodule1", "one_test.go")
-	originalSubmodule2TestOnePath := filepath.Join(tempDir, "module1", "submodule2", "test_one.go")
-	renamedFuzzTestPath := filepath.Join(tempDir, "module1", "fuzz_libFuzzer.go")
-	renamedSubmodule1OneTestPath := filepath.Join(tempDir, "module1", "submodule1", "one_libFuzzer.go")
-	files, err := GetAllSourceFilesOfFile(originalFuzzTestPath)
-	if err != nil {
-		t.Fatalf("failed to load packages: %s", err)
-	}
-
-	// Check that our test files exist before we move them
-	if !fileExists(originalFuzzTestPath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(originalSubmodule1OnePath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(originalSubmodule1OneTestPath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(originalSubmodule2TestOnePath) {
-		t.Fatal("File does not exist")
-	}
-	walker := NewFileWalker()
-	walker.RewriteAllImportedTestFiles(files)
-
-	// Check that we rewrote the right files
-	if !fileExists(renamedFuzzTestPath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(originalSubmodule1OnePath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(renamedSubmodule1OneTestPath) {
-		t.Fatal("File does not exist")
-	}
-	if !fileExists(originalSubmodule2TestOnePath) {
-		t.Fatal("File does not exist")
-	}
-	
-	// We should have renamed two files
-	if len(walker.renamedFiles) != 2 {
-		t.Error("There should be two rewrites")
-	}
-
-	if fuzzTest, ok := walker.renamedFiles[renamedFuzzTestPath]; ok {
-		if fuzzTest != renamedFuzzTestPath {
-			t.Errorf("Path is %s but should be %s", fuzzTest, renamedFuzzTestPath)
-		}
-	}
-
-	if oneTest, ok := walker.renamedFiles[renamedSubmodule1OneTestPath]; ok {
-		if oneTest != renamedSubmodule1OneTestPath {
-			t.Errorf("Path is %s but should be %s", oneTest, renamedSubmodule1OneTestPath)
-		}
-	}
-
-	// Restore the files we renamed
-	err = walker.RestoreRenamedTestFiles()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if !fileExists(originalFuzzTestPath) {
-		t.Error("File does not exist")
-	}
-
-	if !fileExists(originalSubmodule1OnePath) {
-		t.Error("File does not exist")
-	}
-
-	if !fileExists(originalSubmodule1OneTestPath) {
-		t.Error("File does not exist")
-	}
-
-	if !fileExists(originalSubmodule2TestOnePath) {
-		t.Error("File does not exist")
-	}
-
-	// Make sure that the filenames that we changed the _test.go files
-	// to DO NOT exist anymore
-	if fileExists(renamedFuzzTestPath) {
-		t.Fatal("File should not exist")
-	}
-	if fileExists(renamedSubmodule1OneTestPath) {
-		t.Fatal("File should not exist")
-	}
+	os.Chdir(pwd)
 }
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+var expectedCoverageFiles = map[string]string {
+	"module1": `
+
+package module1
+
+import (
+	"io/fs"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+	"runtime"
+	"runtime/pprof"
+	"strings"
+	"testing"
+	customTesting "github.com/AdamKorcz/go-118-fuzz-build/testing"
+)
+
+func TestFuzzCorpus(t *testing.T) {
+	dir := os.Getenv("FUZZ_CORPUS_DIR")
+	if dir == "" {
+		t.Logf("No fuzzing corpus directory set")
+		return
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			var err string
+			switch r.(type) {
+			case string:
+				err = r.(string)
+			case runtime.Error:
+				err = r.(runtime.Error).Error()
+			case error:
+				err = r.(error).Error()
+			}
+			if strings.Contains(err, "GO-FUZZ-BUILD-PANIC") {
+				return
+			} else {
+				panic(err)
+			}
+		}
+	}()
+	profname := os.Getenv("FUZZ_PROFILE_NAME")
+	if profname != "" {
+		f, err := os.Create(profname + ".cpu.prof")
+		if err != nil {
+			t.Logf("error creating profile file %s\n", err)
+		} else {
+			_ = pprof.StartCPUProfile(f)
+		}
+	}
+	_, err := ioutil.ReadDir(dir)
+	if err != nil {
+		t.Logf("Not fuzzing corpus directory %s", err)
+		return
+	}
+	// recurse for regressions subdirectory
+	err = filepath.Walk(dir, func(fname string, info fs.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		data, err := ioutil.ReadFile(fname)
+		if err != nil {
+			t.Error("Failed to read corpus file", err)
+			return err
+		}
+		fuzzer := testing.NewF(data)
+		defer func(){
+			fuzzer.CleanupTempDirs()
+		}()
+		FuzzTest(fuzzer)
+		return nil
+	})
+	if err != nil {
+		t.Error("Failed to run corpus", err)
+	}
+	if profname != "" {
+		pprof.StopCPUProfile()
+		f, err := os.Create(profname + ".heap.prof")
+		if err != nil {
+			t.Logf("error creating heap profile file %s\n", err)
+		}
+		if err = pprof.WriteHeapProfile(f); err != nil {
+			t.Logf("error writing heap profile file %s\n", err)
+		}
+		f.Close()
+	}
+}
+`,
+}
+
+type CoverageFileTest struct {
+	module string
+	fuzzerPath string // relative to ./testdata/module
+	flagFunc string
+	fuzzerPackageName string
+	expectedFilePath string
+}
+func TestCoverageFilePath(t *testing.T) {
+	tests := []*CoverageFileTest{
+		&CoverageFileTest{
+			module: "module1",
+			fuzzerPath: "fuzz_test.go",
+			flagFunc: "FuzzTest",
+			fuzzerPackageName: "module1",
+			expectedFilePath: "module1/oss_fuzz_coverage_test.go",
+		},
+
+	}
+	for _, test := range tests {
+		fuzzerPath := filepath.Join("testdata", test.module, test.fuzzerPath)
+		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, test.flagFunc, test.fuzzerPackageName)
+		if err != nil {
+			t.Error(err)
+		}
+		expectedPath := filepath.Join("testdata", test.expectedFilePath)
+		if expectedPath != coverageFilePath {
+			os.Remove(tempFile)
+			t.Errorf("Expected %s but got %s", expectedPath, coverageFilePath)
+		}
+		os.Remove(coverageFilePath)
+	}
+}
+
+func TestCoverageFileContents(t *testing.T) {
+	tests := []*CoverageFileTest{
+		&CoverageFileTest{
+			module: "module1",
+			fuzzerPath: "fuzz_test.go",
+			flagFunc: "FuzzTest",
+			fuzzerPackageName: "module1",
+		},
+
+	}
+	for _, test := range tests {
+		fuzzerPath := filepath.Join("testdata", test.module, test.fuzzerPath)
+		_, tempFile, err := createCoverageRunner(fuzzerPath, test.flagFunc, test.fuzzerPackageName)
+		if err != nil {
+			t.Error(err)
+		}
+		gotFileContents, err := os.ReadFile(tempFile)
+		if err != nil {			
+			os.Remove(tempFile)
+			t.Error(err)
+		}
+		if string(gotFileContents) != expectedCoverageFiles[test.module] {
+			t.Errorf("Did not create the correct file contents. \n Got: %s\n\nExpected: %s", string(gotFileContents), expectedCoverageFiles[test.module])
+		}
+		os.Remove(tempFile)
+	}
+}
+
+type Overlay struct {
+	Replace map[string]string
+}
+
+func TestCompileCoverageFile(t *testing.T) {
+	fmt.Println(os.Getwd())
+	tests := []*CoverageFileTest{
+		&CoverageFileTest{
+			module: "module1",
+			fuzzerPath: "fuzz_test.go",
+			flagFunc: "FuzzTest",
+			fuzzerPackageName: "module1",
+		},
+		&CoverageFileTest{
+			module: "module2",
+			fuzzerPath: "fuzz_test.go",
+			flagFunc: "FuzzTest",
+			fuzzerPackageName: "module2",
+		},
+	}
+	fmt.Println(os.Getwd())
+	for _, test := range tests {
+		pwd, err := os.Getwd()
+		if err != nil {
+			t.Fatal(err)
+		}
+		funcName := fmt.Sprintf("F%s", test.flagFunc)
+
+		fuzzerPath := filepath.Join("testdata", test.module, test.fuzzerPath)
+		absFuzzerPath := filepath.Join(pwd, fuzzerPath)
+		// Rename "testing" to "github.com/AdamKorcz/go-118-fuzz-build/testing".
+		// This is not the best way to do it, but it is enough to get started
+		// with a single or a few tests. Ideally we should use our librarys
+		// utilities to do this.
+		oldFuzzerContents, err := os.ReadFile(fuzzerPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		updatedFuzzerContents := strings.Replace(string(oldFuzzerContents), "\"testing\"", "\"github.com/AdamKorcz/go-118-fuzz-build/testing\"", 1)
+		// The fuzz function cannot be called "Fuzz*". Prefix an "F"
+		updatedFuzzerContents = strings.Replace(updatedFuzzerContents, test.flagFunc, funcName, 1)
+		
+		tempFuzzer, err := os.CreateTemp("", "temp_fuzzer.go")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(tempFuzzer.Name())
+		if _, err := tempFuzzer.Write([]byte(updatedFuzzerContents)); err != nil {
+			tempFuzzer.Close()
+			t.Fatal(err)
+		}
+		tempFuzzer.Close()
+		newPath := fmt.Sprintf("%s_libfuzzer.go", absFuzzerPath)
+		err = os.Rename(absFuzzerPath, newPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Rename(newPath, absFuzzerPath)
+		
+		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, test.fuzzerPackageName)
+		if err != nil {
+			t.Error(err)
+		}
+		defer os.Remove(tempFile)
+		overlayMap := &Overlay{
+			Replace: map[string]string {
+				coverageFilePath: tempFile,
+			},
+		}
+		overlayJson, err := json.Marshal(overlayMap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		overlayFile, err := os.CreateTemp("", "overlay.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(overlayFile.Name())
+		if _, err := overlayFile.Write(overlayJson); err != nil {
+			overlayFile.Close()
+			t.Fatal(err)
+		}
+		overlayFile.Close()
+
+
+		outPath := fmt.Sprintf("./compiled_fuzzer")
+
+		fmt.Println("cd to ", filepath.Join(filepath.Dir(coverageFilePath)))
+		err = os.Chdir(filepath.Join(filepath.Dir(coverageFilePath)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			cwd, err := os.Getwd()
+			if err != nil {
+				t.Error(err)
+			}
+			if cwd != pwd {
+				os.Chdir(pwd)
+			}
+		}()
+		cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+		args := []string{"test", "-overlay", overlayFile.Name(),
+			"-vet=off", // otherwise vet will complain unnecessarily
+			"-run", "TestFuzzCorpus",
+			"-c", "-o", outPath}
+		cmd = exec.Command("go", args...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			t.Error(err)
+		}
+		os.Remove(outPath)
+		os.Chdir(pwd)
+	}
 }

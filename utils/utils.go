@@ -1,5 +1,9 @@
 package utils
 
+import (
+	"strings"
+)
+
 var (
 	StdLibPkgs = []string{
 		"slices",
@@ -333,3 +337,47 @@ var (
 		"net/netip_test",
 	}
 )
+
+func IsStdLibPkg(importName string) bool {
+	for _, stdLibPkg := range StdLibPkgs {
+		if strings.EqualFold(importName, stdLibPkg) {
+			return true
+		}
+	}
+	if len(importName) >= 6 && importName[:6] == "crypto" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "archive" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "internal" {
+		return true
+	}
+	if len(importName) >= 2 && importName[:2] == "go" {
+		// Some modules start their names with "go."
+		// and these are of course not std lib
+		if importName == "go" || (len(importName) >= 3 && importName[:3] == "go/") {
+			return true
+		}
+		return false
+	}
+	if len(importName) >= 8 && importName[:8] == "encoding" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "compress" {
+		return true
+	}
+	if len(importName) >= 3 && importName[:3] == "net" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "testing" {
+		return true
+	}
+	if len(importName) >= 8 && importName[:8] == "internal" {
+		return true
+	}
+	if len(importName) >= 7 && importName[:7] == "runtime" {
+		return true
+	}
+	return false
+}

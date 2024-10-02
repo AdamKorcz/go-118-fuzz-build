@@ -5,7 +5,7 @@ import (
 	"module1/submodule1"
 )
 
-var(
+var (
 	b = submodule1.AA
 )
 

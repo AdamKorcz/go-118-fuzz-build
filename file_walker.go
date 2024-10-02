@@ -200,41 +200,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
 		}
 	}
-	/*if rewroteTestingFParams {
-		//print("rewrote testingFparams in ", path)
-		err := walker.addShimImport(path, testingTWalker.hasTestingT)
-		if err != nil {
-			panic(err)
-		}
-		// Save original file contents
-		f, err := os.CreateTemp(walker.tmpDir, "")
-		if err != nil {
-			panic(err)
-		}
-		_, err = f.Write(originalFileContents)
-		if err != nil {
-			panic(err)
-		}
-		if err = f.Close(); err != nil {
-			panic(err)
-		}
-		walker.originalFiles[path] = f.Name()
-	}*/
-	// rename test files from *_test.go to *_libFuzzer.go
-	/*if path[len(path)-8:] == "_test.go" {
-		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
-			return
-		}
-		newName := strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
-		err := os.Rename(path, newName)
-		if err != nil {
-			panic(err)
-		}
-		// Store the new name
-		if !stringInSlice(newName, walker.renamedTestFiles) {
-			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
-		}
-	}*/
 }
 
 // Rewrites testing import of a single path
@@ -371,25 +336,8 @@ func (walker *TestingTWalker) Visit(n ast.Node) ast.Visitor {
 	return nil
 }*/
 
-func (walker *FileWalker) RestoreRenamedTestFiles() error {
-	for originalFile, renamedFile := range walker.renamedFiles {
-		err := os.Rename(renamedFile, originalFile)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-/*func (walker *FileWalker) addRenamedFile(oldPath, newPath string) {
-	if _, ok := walker.renamedFiles[oldPath]; ok {
-		panic("The file already exists which it shouldn't")
-	}
-	walker.renamedFiles[oldPath] = newPath
-}*/
-
-// Gets the path of
-func getPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
+// Gets the full path of the file in which the "func Fuzz" is
+func getAbsPathOfFuzzFile(pkgPath, fuzzerName string, buildFlags []string) (string, error) {
 	pkgs, err := packages.Load(&packages.Config{
 		Mode:       LoadMode,
 		BuildFlags: buildFlags,
@@ -461,50 +409,6 @@ func getAllPackagesOfFile(modulePath, fuzzerFilePath string) ([]*packages.Packag
 	return appendPkgImports(pkgs[0], fuzzerPkg, pkgs, modulePath, fuzzerFilePath)
 }
 
-func isStdLibPkg(importName string) bool {
-	for _, stdLibPkg := range utils.StdLibPkgs {
-		if strings.EqualFold(importName, stdLibPkg) {
-			return true
-		}
-	}
-	if len(importName) >= 6 && importName[:6] == "crypto" {
-		return true
-	}
-	if len(importName) >= 7 && importName[:7] == "archive" {
-		return true
-	}
-	if len(importName) >= 8 && importName[:8] == "internal" {
-		return true
-	}
-	if len(importName) >= 2 && importName[:2] == "go" {
-		// Some modules start their names with "go."
-		// and these are of course not std lib
-		if importName == "go" || (len(importName) >= 3 && importName[:3] == "go/") {
-			return true
-		}
-		return false
-	}
-	if len(importName) >= 8 && importName[:8] == "encoding" {
-		return true
-	}
-	if len(importName) >= 8 && importName[:8] == "compress" {
-		return true
-	}
-	if len(importName) >= 3 && importName[:3] == "net" {
-		return true
-	}
-	if len(importName) >= 7 && importName[:7] == "testing" {
-		return true
-	}
-	if len(importName) >= 8 && importName[:8] == "internal" {
-		return true
-	}
-	if len(importName) >= 7 && importName[:7] == "runtime" {
-		return true
-	}
-	return false
-}
-
 // We need this to get the .go files of all the imports
 // so we can check if we need to rewrite any of the
 // imported .go files.
@@ -513,9 +417,6 @@ func isStdLibPkg(importName string) bool {
 func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package, modulePath, fuzzerPath string) ([]*packages.Package, error) {
 	pkgsCopy := pkgs
 	for _, imp := range pkg.Imports {
-		/*if strings.Contains(imp.PkgPath, "pkg/fuzz") {
-			fmt.Println("WE GOT THE FUZZING UTILS")
-		}*/
 		// We might have already loaded this import package
 		if alreadyHaveThisPkg(imp.PkgPath, pkgsCopy) {
 			continue
@@ -531,7 +432,7 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 				continue
 			}
 		}*/
-		if isStdLibPkg(imp.PkgPath) {
+		if utils.IsStdLibPkg(imp.PkgPath) {
 			continue
 		}
 		// Could we make some more static checks here to speed up things?
@@ -567,6 +468,8 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 	}
 	return pkgsCopy, nil
 }
+
+
 
 func shouldChangeTestPackage(imp, fuzzerPkg *packages.Package, fuzzerPath string) bool {
 	//fmt.Println("imp.Name:::::::::::::", imp.Name)
