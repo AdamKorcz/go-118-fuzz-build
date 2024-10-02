@@ -28,7 +28,7 @@ var (
 )
 
 type Overlay struct {
-	Replace: map[string]string
+	Replace map[string]string
 }
 
 type FileWalker struct {
