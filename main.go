@@ -107,7 +107,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("cwd: ", cwd)
 
 	//fset := token.NewFileSet()
 	pkgs, err := packages.Load(&packages.Config{
@@ -155,7 +154,7 @@ func main() {
 	overlayArgs := make([]string, 0)
 
 	// Merge overlay maps
-	newOverlayMap := &Overlay{}
+	newOverlayMap := &Overlay{Replace: make(map[string]string)}
 	if *flagOverlay != "" {
 		b, err := os.ReadFile(*flagOverlay)
 		if err != nil {

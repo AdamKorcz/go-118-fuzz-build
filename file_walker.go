@@ -153,7 +153,13 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		if err = f.Close(); err != nil {
 			panic(err)
 		}
-		walker.overlayMap.Replace[path] = f.Name()
+		var keyName string
+		if path[len(path)-8:] == "_test.go" && filepath.Dir(path) == filepath.Dir(fuzzerPath) {
+			keyName = strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
+		} else {
+			keyName = path
+		}
+		walker.overlayMap.Replace[keyName] = f.Name()
 	}
 
 	if path[len(path)-8:] == "_test.go" {
