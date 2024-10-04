@@ -1,3 +1,5 @@
 package submodule2
 
-var A = "A"
+var (
+	A = "A"
+)

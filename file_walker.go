@@ -39,6 +39,7 @@ type FileWalker struct {
 	originalFiles map[string]string
 	tmpDir        string
 	overlayMap    *Overlay
+	sanitizer     string
 }
 
 func NewFileWalker() *FileWalker {
@@ -127,6 +128,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	if err != nil {
 		return err
 	}*/
+
 	for _, imp := range parsedFile.Imports {
 		if imp.Path.Value == "\"testing\"" {
 			astutil.DeleteImport(fset1, parsedFile, "testing")
@@ -154,7 +156,10 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			panic(err)
 		}
 		var keyName string
-		if path[len(path)-8:] == "_test.go" && filepath.Dir(path) == filepath.Dir(fuzzerPath) {
+		if walker.sanitizer == "coverage" {
+			fmt.Println("----------------")
+			keyName = filepath.Join(filepath.Dir(path), "coverage_fuzzer_renamed.go")
+		} else if path[len(path)-8:] == "_test.go" && filepath.Dir(path) == filepath.Dir(fuzzerPath) {
 			keyName = strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
 		} else {
 			keyName = path
@@ -163,6 +168,10 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 	}
 
 	if path[len(path)-8:] == "_test.go" {
+		// TODO: need to move the file out of the dir in this case
+		if path == fuzzerPath && walker.sanitizer == "coverage" {
+			return
+		}
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
 			return
 		}
@@ -340,7 +349,6 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 			continue
 			return pkgsCopy, err
 		}
-		//fmt.Println("Len of loaded packages: ", len(pkgsCopy))
 		for _, pack := range p {
 			// Here we should evaluate if the package:
 			// 1. is a "_test" package
@@ -352,7 +360,6 @@ func appendPkgImports(pkg, fuzzerPkg *packages.Package, pkgs []*packages.Package
 				continue
 			}
 
-			//fmt.Println("THIS PKG: ", pack.PkgPath, "FuzzerPath: ", fuzzerPath)
 			pkgsCopy = append(pkgsCopy, pack)
 			pkgsCopy, err = appendPkgImports(pack, fuzzerPkg, pkgsCopy, modulePath, fuzzerPath)
 			if err != nil {

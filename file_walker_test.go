@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"os"
 	"path/filepath"
-	"strings"
+	//"strings"
 	"encoding/json"
 	"testing"
 
@@ -111,7 +111,7 @@ func TestFuzzCorpus(t *testing.T) {
 			t.Error("Failed to read corpus file", err)
 			return err
 		}
-		fuzzer := testing.NewF(data)
+		fuzzer := customTesting.NewF(data)
 		defer func(){
 			fuzzer.CleanupTempDirs()
 		}()
@@ -197,6 +197,9 @@ func TestCoverageFileContents(t *testing.T) {
 	}
 }
 
+// TODOs:
+// 1: Find a good way to prepend an "F" to the fuzz func
+// 2: Find a good way to use the current go-118-fuzz-build
 func TestCompileCoverageFile(t *testing.T) {
 	fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
@@ -214,26 +217,153 @@ func TestCompileCoverageFile(t *testing.T) {
 		},
 	}
 	fmt.Println(os.Getwd())
-	for _, test := range tests {
-		pwd, err := os.Getwd()
-		if err != nil {
-			t.Fatal(err)
-		}
-		funcName := fmt.Sprintf("F%s", test.flagFunc)
+	for _, tc := range tests {
+		tc := tc // capture range variable
+		t.Run(tc.module, func(t *testing.T) {
+			pwd, err := os.Getwd()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				cwd, err := os.Getwd()
+				if err != nil {
+					t.Error(err)
+				}
+				if cwd != pwd {
+					os.Chdir(pwd)
+				}
+			}()
+			funcName := fmt.Sprintf("F%s", tc.flagFunc)
+			modulePath := filepath.Join(pwd, "testdata", tc.module)
 
-		fuzzerPath := filepath.Join("testdata", test.module, test.fuzzerPath)
-		absFuzzerPath := filepath.Join(pwd, fuzzerPath)
-		// Rename "testing" to "github.com/AdamKorcz/go-118-fuzz-build/testing".
-		// This is not the best way to do it, but it is enough to get started
-		// with a single or a few tests. Ideally we should use our librarys
-		// utilities to do this.
-		oldFuzzerContents, err := os.ReadFile(fuzzerPath)
+			fuzzerPath := filepath.Join("testdata", tc.module, tc.fuzzerPath)
+			absFuzzerPath := filepath.Join(pwd, fuzzerPath)
+
+			originalFuzzerContents, err := os.ReadFile(absFuzzerPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+
+			err = os.Chdir(filepath.Dir(absFuzzerPath))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			allFiles, err := GetAllSourceFilesOfFile(tc.module, absFuzzerPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			walker := NewFileWalker()
+			walker.sanitizer="coverage"
+			defer walker.cleanUp()
+			for _, sourceFile := range allFiles {
+				walker.RewriteFile(sourceFile, absFuzzerPath)
+			}
+			// Here we could assert the contents of the overlaymap
+		
+			// Create coverage runner
+			coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, tc.fuzzerPackageName)
+			if err != nil {
+				t.Error(err)
+			}
+			_ = coverageFilePath
+			defer os.Remove(tempFile)
+			walker.overlayMap.Replace["oss_fuzz_coverage_test.go"] = tempFile
+			overlayJson, err := json.Marshal(walker.overlayMap)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Error("Just because")
+			overlayFile, err := os.CreateTemp("", "overlay.json")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.Remove(overlayFile.Name())
+			if _, err := overlayFile.Write(overlayJson); err != nil {
+				overlayFile.Close()
+				t.Fatal(err)
+			}
+			overlayFile.Close()
+			//os.Chdir(walker.overlayMap.Replace["oss_fuzz_coverage_test.go"])
+
+			// remove fuzzer. For some reason it is giving us problems in the coverage build
+			fuzzerCopy, err := os.CreateTemp("", "fuzzerCopy")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				fmt.Println("renaming ", fuzzerCopy.Name(), "to ", absFuzzerPath)
+				os.Rename(fuzzerCopy.Name(), absFuzzerPath)
+			}()
+
+			if _, err := fuzzerCopy.Write(originalFuzzerContents); err != nil {
+				fuzzerCopy.Close()
+				t.Fatal(err)
+			}
+			fuzzerCopy.Close()
+			// Coverage doesn't work when fuzz_test.go is still there
+			os.Remove(absFuzzerPath)
+
+
+			cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				t.Error(err)
+			}
+
+			outPath := fmt.Sprintf("./compiled_fuzzer")
+			args := []string{"test",
+				"-overlay", overlayFile.Name(),
+				"-vet=off", // otherwise vet will complain unnecessarily
+				"-c", "-o", outPath, "-v"}
+			cmd = exec.Command("go", args...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
+				t.Error(err)
+			}
+
+			corpusDir := t.TempDir()
+			seedFiles, err := os.ReadDir(filepath.Join(modulePath, "seeds"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, seedFile := range seedFiles {
+				seedFileContent, err := os.ReadFile(filepath.Join(filepath.Join(modulePath, "seeds"), seedFile.Name()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				sf, err := os.Create(filepath.Join(corpusDir, seedFile.Name()))
+				if err != nil {
+					t.Fatal(err)
+				}
+				sf.Write(seedFileContent)
+				sf.Close()
+			}
+			os.Setenv("FUZZ_CORPUS_DIR", corpusDir)
+			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus")
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				t.Error(err)
+			}
+			os.Remove(outPath)
+		})
+		continue
+
+		//newOverlayMap := &Overlay{Replace: make(map[string]string)}
+
+		/*oldFuzzerContents, err := os.ReadFile(fuzzerPath)
 		if err != nil {
 			t.Fatal(err)
 		}
+
 		updatedFuzzerContents := strings.Replace(string(oldFuzzerContents), "\"testing\"", "\"github.com/AdamKorcz/go-118-fuzz-build/testing\"", 1)
 		// The fuzz function cannot be called "Fuzz*". Prefix an "F"
-		updatedFuzzerContents = strings.Replace(updatedFuzzerContents, test.flagFunc, funcName, 1)
+		updatedFuzzerContents = strings.Replace(updatedFuzzerContents, tc.flagFunc, funcName, 1)
 		
 		tempFuzzer, err := os.CreateTemp("", "temp_fuzzer.go")
 		if err != nil {
@@ -252,7 +382,7 @@ func TestCompileCoverageFile(t *testing.T) {
 		}
 		defer os.Rename(newPath, absFuzzerPath)
 		
-		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, test.fuzzerPackageName)
+		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, tc.fuzzerPackageName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -313,6 +443,6 @@ func TestCompileCoverageFile(t *testing.T) {
 			t.Error(err)
 		}
 		os.Remove(outPath)
-		os.Chdir(pwd)
+		os.Chdir(pwd)*/
 	}
 }

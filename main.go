@@ -431,7 +431,7 @@ func TestFuzzCorpus(t *testing.T) {
 		if info.IsDir() {
 			return nil
 		}
-		data, err := ioutil.ReadFile(fname)
+		data, err := os.ReadFile(fname)
 		if err != nil {
 			t.Error("Failed to read corpus file", err)
 			return err
