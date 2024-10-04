@@ -11,9 +11,7 @@ var (
 )
 
 func FuzzTest(f *testing.F) {
-	fmt.Println("In test")
 	f.Fuzz(func(t *testing.T, data string) {
-		fmt.Println("in f.Fuzz", data)
 		if len(data) < 3 {
 			return
 		}

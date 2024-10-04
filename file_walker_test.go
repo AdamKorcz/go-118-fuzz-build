@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"bytes"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"os"
@@ -142,6 +142,7 @@ type CoverageFileTest struct {
 	flagFunc string
 	fuzzerPackageName string
 	expectedFilePath string
+	expectedCoverageOutput string
 }
 func TestCoverageFilePath(t *testing.T) {
 	tests := []*CoverageFileTest{
@@ -197,9 +198,6 @@ func TestCoverageFileContents(t *testing.T) {
 	}
 }
 
-// TODOs:
-// 1: Find a good way to prepend an "F" to the fuzz func
-// 2: Find a good way to use the current go-118-fuzz-build
 func TestCompileCoverageFile(t *testing.T) {
 	//fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
@@ -208,12 +206,14 @@ func TestCompileCoverageFile(t *testing.T) {
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module1",
+			expectedCoverageOutput: fmt.Sprintf("b is:  A\nPASS\n"),
 		},
 		&CoverageFileTest{
 			module: "module2",
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module2",
+			expectedCoverageOutput: fmt.Sprintf("b is:  b\nPASS\n"),
 		},
 	}
 	//fmt.Println(os.Getwd())
@@ -238,12 +238,6 @@ func TestCompileCoverageFile(t *testing.T) {
 
 			fuzzerPath := filepath.Join("testdata", tc.module, tc.fuzzerPath)
 			absFuzzerPath := filepath.Join(pwd, fuzzerPath)
-
-			/*originalFuzzerContents, err := os.ReadFile(absFuzzerPath)
-			if err != nil {
-				t.Fatal(err)
-			}*/
-
 
 			err = os.Chdir(filepath.Dir(absFuzzerPath))
 			if err != nil {
@@ -274,8 +268,6 @@ func TestCompileCoverageFile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			//fmt.Println("overlayJson: ", string(overlayJson))
-			//t.Error("Just because")
 			overlayFile, err := os.CreateTemp("", "overlay.json")
 			if err != nil {
 				t.Fatal(err)
@@ -286,45 +278,7 @@ func TestCompileCoverageFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			overlayFile.Close()
-			//tempFuzzContents, err := os.ReadFile(walker.overlayMap.Replace["/tmp/go-118-fuzz-build/testdata/module1/coverage_fuzzer_renamed.go"])
-			//fmt.Println(string(tempFuzzContents))
-			//os.Chdir(walker.overlayMap.Replace["oss_fuzz_coverage_test.go"])
-
-			// remove fuzzer. For some reason it is giving us problems in the coverage build
-			/*fuzzerCopy, err := os.CreateTemp("", "fuzzerCopy")
-			if err != nil {
-				t.Fatal(err)
-			}*/
-			/*defer func() {
-				sf, err := os.Create(absFuzzerPath)
-				if err != nil {
-					t.Fatal(err)
-				}
-				_, err = sf.Write(originalFuzzerContents)
-				if err != nil {
-					sf.Close()
-					t.Fatal(err)
-				}
-				err = sf.Close()
-				if err != nil {
-					t.Fatal(err)
-				}
-			}()*/
-
-			// The fuzz function cannot be called "Fuzz*". Prefix an "F"
-			/*updatedFuzzerContents := strings.Replace(string(originalFuzzerContents),
-													fmt.Sprintf("func %s(", tc.flagFunc),
-													fmt.Sprintf("func %s(", funcName),
-													1)
-			fmt.Println(string(updatedFuzzerContents))
-
-			if _, err := fuzzerCopy.Write([]byte(updatedFuzzerContents)); err != nil {
-				fuzzerCopy.Close()
-				t.Fatal(err)
-			}
-			fuzzerCopy.Close()*/
-			// Coverage doesn't work when fuzz_test.go is still there
-			os.Remove(absFuzzerPath)
+			
 
 			cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
 			cmd.Stdout = os.Stdout
@@ -364,107 +318,19 @@ func TestCompileCoverageFile(t *testing.T) {
 				sf.Close()
 			}
 			os.Setenv("FUZZ_CORPUS_DIR", corpusDir)
+			var outb bytes.Buffer
 			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus")
-			cmd.Stdout = os.Stdout
+			cmd.Stdout = &outb
 			cmd.Stderr = os.Stderr
-
 			if err := cmd.Run(); err != nil {
 				t.Error(err)
+			}
+			if outb.String() != tc.expectedCoverageOutput {
+				t.Error("Not equal")
 			}
 			os.Remove(outPath)
 		})
 		continue
-
-		//newOverlayMap := &Overlay{Replace: make(map[string]string)}
-
-		/*oldFuzzerContents, err := os.ReadFile(fuzzerPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		updatedFuzzerContents := strings.Replace(string(oldFuzzerContents), "\"testing\"", "\"github.com/AdamKorcz/go-118-fuzz-build/testing\"", 1)
-		// The fuzz function cannot be called "Fuzz*". Prefix an "F"
-		updatedFuzzerContents = strings.Replace(updatedFuzzerContents, tc.flagFunc, funcName, 1)
-		
-		tempFuzzer, err := os.CreateTemp("", "temp_fuzzer.go")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(tempFuzzer.Name())
-		if _, err := tempFuzzer.Write([]byte(updatedFuzzerContents)); err != nil {
-			tempFuzzer.Close()
-			t.Fatal(err)
-		}
-		tempFuzzer.Close()
-		newPath := fmt.Sprintf("%s_libfuzzer.go", absFuzzerPath)
-		err = os.Rename(absFuzzerPath, newPath)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Rename(newPath, absFuzzerPath)
-		
-		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, tc.fuzzerPackageName)
-		if err != nil {
-			t.Error(err)
-		}
-		defer os.Remove(tempFile)
-		overlayMap := &Overlay{
-			Replace: map[string]string {
-				coverageFilePath: tempFile,
-			},
-		}
-		overlayJson, err := json.Marshal(overlayMap)
-		if err != nil {
-			t.Fatal(err)
-		}
-		overlayFile, err := os.CreateTemp("", "overlay.json")
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer os.Remove(overlayFile.Name())
-		if _, err := overlayFile.Write(overlayJson); err != nil {
-			overlayFile.Close()
-			t.Fatal(err)
-		}
-		overlayFile.Close()
-
-
-		outPath := fmt.Sprintf("./compiled_fuzzer")
-
-		fmt.Println("cd to ", filepath.Join(filepath.Dir(coverageFilePath)))
-		err = os.Chdir(filepath.Join(filepath.Dir(coverageFilePath)))
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer func() {
-			cwd, err := os.Getwd()
-			if err != nil {
-				t.Error(err)
-			}
-			if cwd != pwd {
-				os.Chdir(pwd)
-			}
-		}()
-		cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			t.Error(err)
-		}
-		args := []string{"test", "-overlay", overlayFile.Name(),
-			"-vet=off", // otherwise vet will complain unnecessarily
-			"-run", "TestFuzzCorpus",
-			"-c", "-o", outPath}
-		cmd = exec.Command("go", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			t.Error(err)
-		}
-		os.Remove(outPath)
-		os.Chdir(pwd)*/
 	}
 }
 

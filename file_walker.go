@@ -166,6 +166,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 		}
 
 		walker.renamedTestFiles[path] = f.Name()
+		os.Remove(fuzzerPath)
 
 		for _, decl := range parsedFile.Decls {
 			if _, ok := decl.(*ast.FuncDecl); ok {
