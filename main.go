@@ -173,11 +173,11 @@ func main() {
 		newOverlayMap.Replace[k] = v
 	}
 	if sanitizer == "coverage" {
-		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
+		_, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
 		if err != nil {
 			panic(err)
 		}
-		newOverlayMap.Replace[coverageFilePath] = tempFile
+		newOverlayMap.Replace["oss_fuzz_coverage_test.go"] = tempFile
 		defer os.Remove(tempFile)
 	}
 	if len(newOverlayMap.Replace) > 0 {

@@ -235,10 +235,8 @@ func TestCompileCoverageFile(t *testing.T) {
 			}()
 			funcName := fmt.Sprintf("F%s", tc.flagFunc)
 			modulePath := filepath.Join(pwd, "testdata", tc.module)
-
 			fuzzerPath := filepath.Join("testdata", tc.module, tc.fuzzerPath)
 			absFuzzerPath := filepath.Join(pwd, fuzzerPath)
-
 			err = os.Chdir(filepath.Dir(absFuzzerPath))
 			if err != nil {
 				t.Fatal(err)
@@ -263,6 +261,7 @@ func TestCompileCoverageFile(t *testing.T) {
 			}
 			_ = coverageFilePath
 			defer os.Remove(tempFile)
+			// Could make the key here absolute:
 			walker.overlayMap.Replace["oss_fuzz_coverage_test.go"] = tempFile
 			overlayJson, err := json.Marshal(walker.overlayMap)
 			if err != nil {
