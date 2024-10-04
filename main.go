@@ -166,11 +166,11 @@ func main() {
 			panic(fmt.Sprintf("Could not read overlay file %s", err.Error()))
 		}
 		for k, v := range usersOverlayMap.Replace {
-		    newOverlayMap.Replace[k] = v
+			newOverlayMap.Replace[k] = v
 		}
 	}
 	for k, v := range walker.overlayMap.Replace {
-	    newOverlayMap.Replace[k] = v
+		newOverlayMap.Replace[k] = v
 	}
 	if sanitizer == "coverage" {
 		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
@@ -180,7 +180,7 @@ func main() {
 		newOverlayMap.Replace[coverageFilePath] = tempFile
 		defer os.Remove(tempFile)
 	}
-	if len(newOverlayMap.Replace) > 0{
+	if len(newOverlayMap.Replace) > 0 {
 		overlayFile, err := os.CreateTemp("", "ossFuzzOverlayFile.json")
 		if err != nil {
 			panic(err)
@@ -195,6 +195,7 @@ func main() {
 			panic(err)
 		}
 		overlayFile.Close()
+		fmt.Println("overlayJson: ", string(overlayJson))
 		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
 	}
 
@@ -251,14 +252,15 @@ func main() {
 		// 3. Compile it with: https://github.com/google/oss-fuzz/blob/690b4ebae2e7dcf69bde5bfcbf4c668f8f177ca0/infra/base-images/base-builder/compile_go_fuzzer#L60
 
 		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
-		
+
 		args := []string{"test", "-run", "TestFuzzCorpus",
-			"-v", *flagTags,
-			"-coverpkg", "./...",
-			"-c", "-o", outPath}
+			"-vet=off"}
 		if len(overlayArgs) > 0 {
 			args = append(args, overlayArgs...)
 		}
+
+		args = append(args, "-coverpkg", "./...",
+			"-c", "-o", outPath)
 		cmd := exec.Command("go", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -281,7 +283,7 @@ func createCoverageRunner(fuzzerPath, flagFunc, fuzzerPackageName string) (strin
 	coverageFilePath := filepath.Join(pathForCoverageTest, "oss_fuzz_coverage_test.go")
 	f, err := os.CreateTemp("", "coverageFile")
 	if err != nil {
-		return coverageFilePath, "",err
+		return coverageFilePath, "", err
 	}
 	defer f.Close()
 	err = coverageTmpl.Execute(f, &Data{
@@ -434,7 +436,7 @@ func TestFuzzCorpus(t *testing.T) {
 			t.Error("Failed to read corpus file", err)
 			return err
 		}
-		fuzzer := testing.NewF(data)
+		fuzzer := customTesting.NewF(data)
 		defer func(){
 			fuzzer.CleanupTempDirs()
 		}()
