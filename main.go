@@ -142,6 +142,7 @@ func main() {
 		panic(err)
 	}
 	walker := NewFileWalker()
+	walker.sanitizer = sanitizer
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
 		walker.RewriteFile(sourceFile, fuzzerPath, *flagFunc)

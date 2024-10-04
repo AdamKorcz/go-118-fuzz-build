@@ -145,8 +145,11 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 		}
 	}
 
+	
 	// IF coverage: prepend "F"
-	if walker.sanitizer == "coverage" && path == fuzzerPath {
+	fmt.Println("1heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeere", path, "& ", fuzzerPath)
+	if walker.sanitizer == "coverage" && strings.EqualFold(path, fuzzerPath) {
+		fmt.Println("222222222222222222222heeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeere")
 
 		// Make a copy of the original fuzzer contents
 		originalFuzzerContents, err := os.ReadFile(path)
@@ -166,6 +169,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 		}
 
 		walker.renamedTestFiles[path] = f.Name()
+		fmt.Println("removing ", fuzzerPath, "...")
 		os.Remove(fuzzerPath)
 
 		for _, decl := range parsedFile.Decls {
