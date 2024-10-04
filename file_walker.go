@@ -33,7 +33,7 @@ type Overlay struct {
 
 type FileWalker struct {
 	renamedFiles     map[string]string
-	renamedTestFiles []string
+	renamedTestFiles map[string]string // key = old, correct name, value = temporary name
 	rewrittenFiles   []string
 	// Stores the original files
 	originalFiles map[string]string
@@ -49,7 +49,7 @@ func NewFileWalker() *FileWalker {
 	}
 	return &FileWalker{
 		renamedFiles:     make(map[string]string),
-		renamedTestFiles: make([]string, 0),
+		renamedTestFiles: make(map[string]string),
 		rewrittenFiles:   make([]string, 0),
 		originalFiles:    make(map[string]string),
 		tmpDir:           tmpDir,
@@ -58,25 +58,31 @@ func NewFileWalker() *FileWalker {
 }
 
 func (walker *FileWalker) cleanUp() {
-	for _, renamedTestFile := range walker.renamedTestFiles {
-		fmt.Println("Cleaning up1... ", renamedTestFile)
-		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
-		err := os.Rename(renamedTestFile, newName)
+	for oldName, renamedTestFile := range walker.renamedTestFiles { 
+		err := os.Rename(renamedTestFile, oldName)
 		if err != nil {
 			panic(err)
 		}
 	}
-	fmt.Println("removing walker.tmpDir..")
+	/*for _, renamedTestFile := range walker.renamedTestFiles {
+		fmt.Println("Cleaning up1... ", renamedTestFile)
+		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
+		err := os.Rename(renamedTestFile, oldName)
+		if err != nil {
+			panic(err)
+		}
+	}*/
+	//fmt.Println("removing walker.tmpDir..")
 	err := os.RemoveAll(walker.tmpDir)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("Removed walker.tmpDir")
+	//fmt.Println("Removed walker.tmpDir")
 }
 
 // "path" is expected to be a file in a module
 // that a fuzzer uses.
-func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
+func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 	// Check for files outside of the fuzzing module.
 	// This is quite late to catch it and should be done smarter and
 	// earlier in the process.
@@ -139,6 +145,37 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		}
 	}
 
+	// IF coverage: prepend "F"
+	if walker.sanitizer == "coverage" && path == fuzzerPath {
+
+		// Make a copy of the original fuzzer contents
+		originalFuzzerContents, err := os.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+		f, err := os.CreateTemp(walker.tmpDir, "")
+		if err != nil {
+			panic(err)
+		}
+		_, err = f.Write(originalFuzzerContents)
+		if err != nil {
+			panic(err)
+		}
+		if err = f.Close(); err != nil {
+			panic(err)
+		}
+
+		walker.renamedTestFiles[path] = f.Name()
+
+		for _, decl := range parsedFile.Decls {
+			if _, ok := decl.(*ast.FuncDecl); ok {
+				if decl.(*ast.FuncDecl).Name.Name == fuzzFuncName {
+					decl.(*ast.FuncDecl).Name.Name = fmt.Sprintf("F%s", fuzzFuncName)
+				}
+			}
+		}
+	}
+
 	if rewroteFile {
 		f, err := os.CreateTemp(walker.tmpDir, "")
 		if err != nil {
@@ -157,7 +194,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 		}
 		var keyName string
 		if walker.sanitizer == "coverage" {
-			fmt.Println("----------------")
 			keyName = filepath.Join(filepath.Dir(path), "coverage_fuzzer_renamed.go")
 		} else if path[len(path)-8:] == "_test.go" && filepath.Dir(path) == filepath.Dir(fuzzerPath) {
 			keyName = strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
@@ -181,9 +217,11 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath string) {
 			panic(err)
 		}
 		// Store the new name
-		if !stringInSlice(newName, walker.renamedTestFiles) {
+		walker.renamedTestFiles[path] = newName
+
+		/*if !stringInSlice(newName, walker.renamedTestFiles) {
 			walker.renamedTestFiles = append(walker.renamedTestFiles, newName)
-		}
+		}*/
 	}
 }
 

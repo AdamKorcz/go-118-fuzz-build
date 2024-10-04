@@ -6,7 +6,7 @@ import (
 	"module2/submodule1"
 )
 
-func FFuzzTest(f *testing.F) {
+func FuzzTest(f *testing.F) {
 	f.Fuzz(func(t *testing.T, param string) {
 		if param == submodule1.A {
 			t.Fatal("Got the right one")

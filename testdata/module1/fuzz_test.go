@@ -10,7 +10,7 @@ var (
 	b = submodule1.AA
 )
 
-func FFuzzTest(f *testing.F) {
+func FuzzTest(f *testing.F) {
 	fmt.Println("In test")
 	f.Fuzz(func(t *testing.T, data string) {
 		fmt.Println("in f.Fuzz", data)

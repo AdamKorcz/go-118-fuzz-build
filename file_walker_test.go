@@ -201,7 +201,7 @@ func TestCoverageFileContents(t *testing.T) {
 // 1: Find a good way to prepend an "F" to the fuzz func
 // 2: Find a good way to use the current go-118-fuzz-build
 func TestCompileCoverageFile(t *testing.T) {
-	fmt.Println(os.Getwd())
+	//fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
 		&CoverageFileTest{
 			module: "module1",
@@ -216,7 +216,7 @@ func TestCompileCoverageFile(t *testing.T) {
 			fuzzerPackageName: "module2",
 		},
 	}
-	fmt.Println(os.Getwd())
+	//fmt.Println(os.Getwd())
 	for _, tc := range tests {
 		tc := tc // capture range variable
 		t.Run(tc.module, func(t *testing.T) {
@@ -239,10 +239,10 @@ func TestCompileCoverageFile(t *testing.T) {
 			fuzzerPath := filepath.Join("testdata", tc.module, tc.fuzzerPath)
 			absFuzzerPath := filepath.Join(pwd, fuzzerPath)
 
-			originalFuzzerContents, err := os.ReadFile(absFuzzerPath)
+			/*originalFuzzerContents, err := os.ReadFile(absFuzzerPath)
 			if err != nil {
 				t.Fatal(err)
-			}
+			}*/
 
 
 			err = os.Chdir(filepath.Dir(absFuzzerPath))
@@ -258,7 +258,7 @@ func TestCompileCoverageFile(t *testing.T) {
 			walker.sanitizer="coverage"
 			defer walker.cleanUp()
 			for _, sourceFile := range allFiles {
-				walker.RewriteFile(sourceFile, absFuzzerPath)
+				walker.RewriteFile(sourceFile, absFuzzerPath, tc.flagFunc)
 			}
 			// Here we could assert the contents of the overlaymap
 		
@@ -274,7 +274,8 @@ func TestCompileCoverageFile(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Error("Just because")
+			//fmt.Println("overlayJson: ", string(overlayJson))
+			//t.Error("Just because")
 			overlayFile, err := os.CreateTemp("", "overlay.json")
 			if err != nil {
 				t.Fatal(err)
@@ -285,26 +286,45 @@ func TestCompileCoverageFile(t *testing.T) {
 				t.Fatal(err)
 			}
 			overlayFile.Close()
+			//tempFuzzContents, err := os.ReadFile(walker.overlayMap.Replace["/tmp/go-118-fuzz-build/testdata/module1/coverage_fuzzer_renamed.go"])
+			//fmt.Println(string(tempFuzzContents))
 			//os.Chdir(walker.overlayMap.Replace["oss_fuzz_coverage_test.go"])
 
 			// remove fuzzer. For some reason it is giving us problems in the coverage build
-			fuzzerCopy, err := os.CreateTemp("", "fuzzerCopy")
+			/*fuzzerCopy, err := os.CreateTemp("", "fuzzerCopy")
 			if err != nil {
 				t.Fatal(err)
-			}
-			defer func() {
-				fmt.Println("renaming ", fuzzerCopy.Name(), "to ", absFuzzerPath)
-				os.Rename(fuzzerCopy.Name(), absFuzzerPath)
-			}()
+			}*/
+			/*defer func() {
+				sf, err := os.Create(absFuzzerPath)
+				if err != nil {
+					t.Fatal(err)
+				}
+				_, err = sf.Write(originalFuzzerContents)
+				if err != nil {
+					sf.Close()
+					t.Fatal(err)
+				}
+				err = sf.Close()
+				if err != nil {
+					t.Fatal(err)
+				}
+			}()*/
 
-			if _, err := fuzzerCopy.Write(originalFuzzerContents); err != nil {
+			// The fuzz function cannot be called "Fuzz*". Prefix an "F"
+			/*updatedFuzzerContents := strings.Replace(string(originalFuzzerContents),
+													fmt.Sprintf("func %s(", tc.flagFunc),
+													fmt.Sprintf("func %s(", funcName),
+													1)
+			fmt.Println(string(updatedFuzzerContents))
+
+			if _, err := fuzzerCopy.Write([]byte(updatedFuzzerContents)); err != nil {
 				fuzzerCopy.Close()
 				t.Fatal(err)
 			}
-			fuzzerCopy.Close()
+			fuzzerCopy.Close()*/
 			// Coverage doesn't work when fuzz_test.go is still there
 			os.Remove(absFuzzerPath)
-
 
 			cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
 			cmd.Stdout = os.Stdout
@@ -325,6 +345,7 @@ func TestCompileCoverageFile(t *testing.T) {
 				t.Error(err)
 			}
 
+			// Run the built coverage binary
 			corpusDir := t.TempDir()
 			seedFiles, err := os.ReadDir(filepath.Join(modulePath, "seeds"))
 			if err != nil {
@@ -446,3 +467,6 @@ func TestCompileCoverageFile(t *testing.T) {
 		os.Chdir(pwd)*/
 	}
 }
+
+// 1:
+// Test that ensures that fuzzer is removed during coverage build

@@ -144,7 +144,7 @@ func main() {
 	walker := NewFileWalker()
 	defer walker.cleanUp()
 	for _, sourceFile := range allFiles {
-		walker.RewriteFile(sourceFile, fuzzerPath)
+		walker.RewriteFile(sourceFile, fuzzerPath, *flagFunc)
 	}
 	err = os.Chdir(cwd)
 	if err != nil {
