@@ -174,7 +174,8 @@ func main() {
 		newOverlayMap.Replace[k] = v
 	}
 	if sanitizer == "coverage" {
-		_, tempFile, err := createCoverageRunner(fuzzerPath, *flagFunc, fuzzerPackage.Name)
+		funcName := fmt.Sprintf("F%s", *flagFunc)
+		_, tempFile, err := createCoverageRunner(fuzzerPath, funcName, fuzzerPackage.Name)
 		if err != nil {
 			panic(err)
 		}
@@ -196,7 +197,6 @@ func main() {
 			panic(err)
 		}
 		overlayFile.Close()
-		fmt.Println("overlayJson: ", string(overlayJson))
 		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
 	}
 
@@ -254,14 +254,22 @@ func main() {
 
 		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
 
-		args := []string{"test", "-run", "TestFuzzCorpus",
-			"-vet=off"}
+		args := []string{"test",
+				"-vet=off", // otherwise vet will complain unnecessarily
+				"-c", "-o", outPath, "-v"}
+		/*args := []string{"test", "-run", "TestFuzzCorpus",
+			"-vet=off"}*/
 		if len(overlayArgs) > 0 {
 			args = append(args, overlayArgs...)
 		}
 
-		args = append(args, "-coverpkg", "./...",
-			"-c", "-o", outPath)
+		pwd, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		defer os.Chdir(pwd)
+		os.Chdir(filepath.Dir(fuzzerPath))
+		fmt.Println(args)
 		cmd := exec.Command("go", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
