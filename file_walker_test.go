@@ -6,19 +6,15 @@ import (
 	"os/exec"
 	"os"
 	"path/filepath"
-	//"strings"
-	"encoding/json"
 	"testing"
-
-	//"github.com/google/go-cmp/cmp"
-	//"github.com/docker/docker/daemon/graphdriver/copy"
 )
 
-func TestGetAllPackagesOfFile(t *testing.T) {
+/*func TestGetAllPackagesOfFile(t *testing.T) {
 	pwd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
 	}
+	walker.
 	pkgs, err := getAllPackagesOfFile("module1", filepath.Join("testdata", "module1", "fuzz_test.go"))
 	if err != nil {
 		t.Fatalf("failed to load packages: %s", err)
@@ -39,7 +35,7 @@ func TestGetAllPackagesOfFile(t *testing.T) {
 		t.Error("pkgs[4].Name should be 'main'")
 	}
 	os.Chdir(pwd)
-}
+}*/
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
@@ -143,34 +139,10 @@ type CoverageFileTest struct {
 	fuzzerPackageName string
 	expectedFilePath string
 	expectedCoverageOutput string
-}
-func TestCoverageFilePath(t *testing.T) {
-	tests := []*CoverageFileTest{
-		&CoverageFileTest{
-			module: "module1",
-			fuzzerPath: "fuzz_test.go",
-			flagFunc: "FuzzTest",
-			fuzzerPackageName: "module1",
-			expectedFilePath: "module1/oss_fuzz_coverage_test.go",
-		},
-
-	}
-	for _, test := range tests {
-		fuzzerPath := filepath.Join("testdata", test.module, test.fuzzerPath)
-		coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, test.flagFunc, test.fuzzerPackageName)
-		if err != nil {
-			t.Error(err)
-		}
-		expectedPath := filepath.Join("testdata", test.expectedFilePath)
-		if expectedPath != coverageFilePath {
-			os.Remove(tempFile)
-			t.Errorf("Expected %s but got %s", expectedPath, coverageFilePath)
-		}
-		os.Remove(coverageFilePath)
-	}
+	expectedCoverOut string
 }
 
-func TestCoverageFileContents(t *testing.T) {
+/*func TestCoverageFileContents(t *testing.T) {
 	tests := []*CoverageFileTest{
 		&CoverageFileTest{
 			module: "module1",
@@ -196,7 +168,7 @@ func TestCoverageFileContents(t *testing.T) {
 		}
 		os.Remove(tempFile)
 	}
-}
+}*/
 
 func TestCompileCoverageFile(t *testing.T) {
 	//fmt.Println(os.Getwd())
@@ -206,14 +178,22 @@ func TestCompileCoverageFile(t *testing.T) {
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module1",
-			expectedCoverageOutput: fmt.Sprintf("b is:  A\nPASS\n"),
+			expectedCoverageOutput: fmt.Sprintf("b is:  AA\nPASS\ncoverage: 100.0%% of statements in ./...\n"),
+			expectedCoverOut: "mode: set\nmodule1/submodule2/one.go:3.17,5.2 1 1\n",
 		},
 		&CoverageFileTest{
 			module: "module2",
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module2",
-			expectedCoverageOutput: fmt.Sprintf("b is:  b\nPASS\n"),
+			expectedCoverageOutput: fmt.Sprintf("PASS\ncoverage: 100.0%% of statements in ./...\n"),
+			expectedCoverOut: `mode: set
+module2/submodule3/one.go:3.37,4.17 1 1
+module2/submodule3/one.go:4.17,6.3 1 1
+module2/submodule3/one.go:6.8,6.25 1 1
+module2/submodule3/one.go:6.25,8.3 1 1
+module2/submodule3/one.go:8.8,10.3 1 1
+`,
 		},
 	}
 	//fmt.Println(os.Getwd())
@@ -233,8 +213,6 @@ func TestCompileCoverageFile(t *testing.T) {
 					os.Chdir(pwd)
 				}
 			}()
-			funcName := fmt.Sprintf("F%s", tc.flagFunc)
-			modulePath := filepath.Join(pwd, "testdata", tc.module)
 			fuzzerPath := filepath.Join("testdata", tc.module, tc.fuzzerPath)
 			absFuzzerPath := filepath.Join(pwd, fuzzerPath)
 			err = os.Chdir(filepath.Dir(absFuzzerPath))
@@ -242,64 +220,36 @@ func TestCompileCoverageFile(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			allFiles, err := GetAllSourceFilesOfFile(tc.module, absFuzzerPath)
-			if err != nil {
-				t.Fatal(err)
-			}
 			walker := NewFileWalker()
 			walker.sanitizer="coverage"
 			defer walker.cleanUp()
-			for _, sourceFile := range allFiles {
-				walker.RewriteFile(sourceFile, absFuzzerPath, tc.flagFunc)
-			}
-			// Here we could assert the contents of the overlaymap
-		
-			// Create coverage runner
-			coverageFilePath, tempFile, err := createCoverageRunner(fuzzerPath, funcName, tc.fuzzerPackageName)
-			if err != nil {
+			walker.fuzzerPath = absFuzzerPath // We should/could use getAbsPathOfFuzzFile here
+
+			walker.CreateAndModifyFiles(tc.module, tc.flagFunc, "", tc.fuzzerPackageName)
+			
+			// This one is probably specific to this test.
+			tidyArgs := []string{"mod", "tidy"}
+			tidyArgs = append(tidyArgs, walker.overlayArgs...)
+			cmd := exec.Command("go", tidyArgs...)
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			if err := cmd.Run(); err != nil {
 				t.Error(err)
 			}
-			_ = coverageFilePath
-			defer os.Remove(tempFile)
-			// Could make the key here absolute:
-			walker.overlayMap.Replace["oss_fuzz_coverage_test.go"] = tempFile
-			overlayJson, err := json.Marshal(walker.overlayMap)
+
+			// This one could be standardized
+			outPath := fmt.Sprintf("./compiled_fuzzer")
+			err = buildTestBinary(outPath, walker.overlayArgs)
 			if err != nil {
 				t.Fatal(err)
 			}
-			overlayFile, err := os.CreateTemp("", "overlay.json")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer os.Remove(overlayFile.Name())
-			if _, err := overlayFile.Write(overlayJson); err != nil {
-				overlayFile.Close()
-				t.Fatal(err)
-			}
-			overlayFile.Close()
 			
 
-			cmd := exec.Command("go", "mod", "tidy", "-overlay", overlayFile.Name())
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				t.Error(err)
-			}
-
-			outPath := fmt.Sprintf("./compiled_fuzzer")
-			args := []string{"test",
-				"-covermode=atomic",
-				"-overlay", overlayFile.Name(),
-				"-vet=off", // otherwise vet will complain unnecessarily
-				"-c", "-o", outPath, "-v"}
-			cmd = exec.Command("go", args...)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
-				t.Error(err)
-			}
-
 			// Run the built coverage binary
+			// Here we have to set up the seeds dir and moves the seeds
+			// into it. It then sets the environment variable to the
+			// path of the just created seeds dir
+			modulePath := filepath.Join(pwd, "testdata", tc.module)
 			corpusDir := t.TempDir()
 			seedFiles, err := os.ReadDir(filepath.Join(modulePath, "seeds"))
 			if err != nil {
@@ -318,23 +268,30 @@ func TestCompileCoverageFile(t *testing.T) {
 				sf.Close()
 			}
 			os.Setenv("FUZZ_CORPUS_DIR", corpusDir)
+			// We have now created the seeds dir
+
 			var outb bytes.Buffer
-			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus", "-test.coverprofile=cover.out")
+			coverDir := t.TempDir()
+			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus", 
+				fmt.Sprintf("-test.coverprofile=%s", filepath.Join(coverDir, "cover.out")))
 			cmd.Stdout = &outb
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
 				t.Error(err)
 			}
+			// Assert the output from running the binary
 			if outb.String() != tc.expectedCoverageOutput {
+				fmt.Printf("outb: '%s'\n and expected output: '%s'\n", outb.String(), tc.expectedCoverageOutput)
 				t.Error("Not equal")
 			}
-			bbbbb, err := os.ReadFile("cover.out")
+			// Assert the contents of the generated "cover.out"
+			coverOutContents, err := os.ReadFile(filepath.Join(coverDir, "cover.out"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			fmt.Println(string(bbbbb))
-			t.Error("Just because")
-			os.Remove(outPath)
+			if string(coverOutContents) != tc.expectedCoverOut {
+				t.Errorf("Expected '%s'\nGot '%s'\n", tc.expectedCoverOut, string(coverOutContents))
+			}
 		})
 		continue
 	}

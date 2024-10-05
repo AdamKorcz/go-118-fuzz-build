@@ -5,5 +5,5 @@ import (
 )
 
 var (
-	A = submodule3.A
+	A = "We Dont't Use This"
 )

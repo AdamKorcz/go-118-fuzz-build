@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"go/token"
@@ -9,7 +8,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -133,71 +131,18 @@ func main() {
 	if packages.PrintErrors(pkgs) != 0 {
 		os.Exit(1)
 	}
-	fuzzerPath, err := getAbsPathOfFuzzFile(fuzzerPackage.PkgPath, *flagFunc, buildFlags)
-	if err != nil {
-		panic(err)
-	}
-	allFiles, err := GetAllSourceFilesOfFile(modulePath, fuzzerPath)
-	if err != nil {
-		panic(err)
-	}
 	walker := NewFileWalker()
 	walker.sanitizer = sanitizer
 	defer walker.cleanUp()
-	for _, sourceFile := range allFiles {
-		walker.RewriteFile(sourceFile, fuzzerPath, *flagFunc)
-	}
-	err = os.Chdir(cwd)
+
+	err = walker.getAbsPathOfFuzzFile(fuzzerPackage.PkgPath, *flagFunc, buildFlags)
 	if err != nil {
 		panic(err)
 	}
-
-	overlayArgs := make([]string, 0)
-
-	// Merge overlay maps
-	newOverlayMap := &Overlay{Replace: make(map[string]string)}
-	if *flagOverlay != "" {
-		b, err := os.ReadFile(*flagOverlay)
-		if err != nil {
-			panic(fmt.Sprintf("Could not find overlay file %s", err.Error()))
-		}
-		usersOverlayMap := &Overlay{}
-		err = json.Unmarshal(b, usersOverlayMap)
-		if err != nil {
-			panic(fmt.Sprintf("Could not read overlay file %s", err.Error()))
-		}
-		for k, v := range usersOverlayMap.Replace {
-			newOverlayMap.Replace[k] = v
-		}
-	}
-	for k, v := range walker.overlayMap.Replace {
-		newOverlayMap.Replace[k] = v
-	}
-	if sanitizer == "coverage" {
-		funcName := fmt.Sprintf("F%s", *flagFunc)
-		_, tempFile, err := createCoverageRunner(fuzzerPath, funcName, fuzzerPackage.Name)
-		if err != nil {
-			panic(err)
-		}
-		newOverlayMap.Replace["oss_fuzz_coverage_test.go"] = tempFile
-		defer os.Remove(tempFile)
-	}
-	if len(newOverlayMap.Replace) > 0 {
-		overlayFile, err := os.CreateTemp("", "ossFuzzOverlayFile.json")
-		if err != nil {
-			panic(err)
-		}
-		overlayJson, err := json.Marshal(newOverlayMap)
-		if err != nil {
-			panic(err)
-		}
-		defer os.Remove(overlayFile.Name())
-		if _, err := overlayFile.Write(overlayJson); err != nil {
-			overlayFile.Close()
-			panic(err)
-		}
-		overlayFile.Close()
-		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
+	walker.CreateAndModifyFiles(modulePath, *flagFunc, *flagOverlay, fuzzerPackage.Name)
+	err = os.Chdir(cwd)
+	if err != nil {
+		panic(err)
 	}
 
 	if sanitizer == "address" {
@@ -235,8 +180,8 @@ func main() {
 
 		args := []string{"build", "-o", out}
 		args = append(args, buildFlags...)
-		if len(overlayArgs) > 0 {
-			args = append(args, overlayArgs...)
+		if len(walker.overlayArgs) > 0 {
+			args = append(args, walker.overlayArgs...)
 		}
 		args = append(args, mainFile.Name())
 		fmt.Println("Running go ", args)
@@ -250,56 +195,14 @@ func main() {
 		}
 	} else {
 		// coverage sanitizer
-		// 3. Compile it with: https://github.com/google/oss-fuzz/blob/690b4ebae2e7dcf69bde5bfcbf4c668f8f177ca0/infra/base-images/base-builder/compile_go_fuzzer#L60
-
 		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
-
-		args := []string{"test",
-				"-vet=off", // otherwise vet will complain unnecessarily
-				"-c", "-o", outPath, "-v"}
-		/*args := []string{"test", "-run", "TestFuzzCorpus",
-			"-vet=off"}*/
-		if len(overlayArgs) > 0 {
-			args = append(args, overlayArgs...)
-		}
-
-		pwd, err := os.Getwd()
+		err = buildTestBinary(outPath, walker.overlayArgs)
 		if err != nil {
 			panic(err)
 		}
-		defer os.Chdir(pwd)
-		os.Chdir(filepath.Dir(fuzzerPath))
-		fmt.Println(args)
-		cmd := exec.Command("go", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			panic(err)
-			log.Fatal("failed to build packages:", err)
-		}
-
-		// 4. Clean up test filen.
 
 	}
 	fmt.Println("BUILT THE FUZZER")
-}
-
-// Returns the path to the coverage test and the temp file. The user should add
-// this to the overlay map with "coverageFilePath":f.Name()"
-func createCoverageRunner(fuzzerPath, flagFunc, fuzzerPackageName string) (string, string, error) {
-	pathForCoverageTest := filepath.Dir(fuzzerPath)
-	coverageFilePath := filepath.Join(pathForCoverageTest, "oss_fuzz_coverage_test.go")
-	f, err := os.CreateTemp("", "coverageFile")
-	if err != nil {
-		return coverageFilePath, "", err
-	}
-	defer f.Close()
-	err = coverageTmpl.Execute(f, &Data{
-		Func:    flagFunc,
-		PkgName: fuzzerPackageName,
-	})
-	return coverageFilePath, f.Name(), nil
 }
 
 // Packages that match one of the include patterns (default is include all packages)
@@ -468,3 +371,15 @@ func TestFuzzCorpus(t *testing.T) {
 	}
 }
 `))
+
+func buildTestBinary(outPath string, overlayArgs []string) error {
+	args := []string{"test",
+		"-coverpkg", "./...",
+		"-vet=off", // otherwise vet will complain unnecessarily
+		"-c", "-o", outPath, "-v"}
+	args = append(args, overlayArgs...)
+	cmd := exec.Command("go", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}

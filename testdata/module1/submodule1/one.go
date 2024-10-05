@@ -4,5 +4,5 @@ import (
 	"module1/submodule2"
 )
 var (
-	AA = submodule2.A
+	AA = submodule2.A()
 )
