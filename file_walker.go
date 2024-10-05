@@ -149,26 +149,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 	// IF coverage: prepend "F"
 	if walker.sanitizer == "coverage" && strings.EqualFold(path, fuzzerPath) {
 
-		// Make a copy of the original fuzzer contents
-		originalFuzzerContents, err := os.ReadFile(path)
-		if err != nil {
-			panic(err)
-		}
-		f, err := os.CreateTemp(walker.tmpDir, "")
-		if err != nil {
-			panic(err)
-		}
-		_, err = f.Write(originalFuzzerContents)
-		if err != nil {
-			panic(err)
-		}
-		if err = f.Close(); err != nil {
-			panic(err)
-		}
-
-		walker.renamedTestFiles[path] = f.Name()
-		os.Remove(fuzzerPath)
-
+		// Change fuzz function name from Fuzz* to FFuzz*
 		for _, decl := range parsedFile.Decls {
 			if _, ok := decl.(*ast.FuncDecl); ok {
 				if decl.(*ast.FuncDecl).Name.Name == fuzzFuncName {
@@ -176,9 +157,41 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 				}
 			}
 		}
-	}
 
-	if rewroteFile {
+		// Make a copy of the original fuzzer contents
+		originalFuzzerContents, err := os.ReadFile(path)
+		if err != nil {
+			panic(err)
+		}
+		originalFuzzerFileCopy, err := os.CreateTemp(walker.tmpDir, "")
+		if err != nil {
+			panic(err)
+		}
+		_, err = originalFuzzerFileCopy.Write(originalFuzzerContents)
+		if err != nil {
+			panic(err)
+		}
+		if err = originalFuzzerFileCopy.Close(); err != nil {
+			panic(err)
+		}
+		os.Remove(fuzzerPath)
+		fff, err := os.Create(fuzzerPath)
+		if err != nil {
+			panic(err)
+		}
+		var buf bytes.Buffer
+		printer.Fprint(&buf, fset1, parsedFile)
+
+		_, err = fff.Write(buf.Bytes())
+		if err != nil {
+			panic(err)
+		}
+		if err = fff.Close(); err != nil {
+			panic(err)
+		}
+
+		walker.renamedTestFiles[fuzzerPath] = originalFuzzerFileCopy.Name()
+	} else if rewroteFile {
 		f, err := os.CreateTemp(walker.tmpDir, "")
 		if err != nil {
 			panic(err)
@@ -195,19 +208,29 @@ func (walker *FileWalker) RewriteFile(path, fuzzerPath, fuzzFuncName string) {
 			panic(err)
 		}
 		var keyName string
-		if walker.sanitizer == "coverage" && strings.EqualFold(path, fuzzerPath) {
-			keyName = filepath.Join(filepath.Dir(path), "coverage_fuzzer_renamed.go")
+		if strings.EqualFold(path, fuzzerPath) {
+			//keyName = filepath.Join(filepath.Dir(path), "coverage_fuzzer_renamed.go")
+			/*fff, err := os.Create(filepath.Join(filepath.Dir(path), "coverage_fuzzer_renamed.go"))
+			if err != nil {
+				panic(err)
+			}
+			fff.WriteString("package module1")
+			fff.Close()*/
+
 		} else if path[len(path)-8:] == "_test.go" && filepath.Dir(path) == filepath.Dir(fuzzerPath) {
 			keyName = strings.TrimSuffix(path, "_test.go") + "_libFuzzer.go"
+			walker.overlayMap.Replace[keyName] = f.Name()
 		} else {
 			keyName = path
+			walker.overlayMap.Replace[keyName] = f.Name()
 		}
-		walker.overlayMap.Replace[keyName] = f.Name()
 	}
 
 	if path[len(path)-8:] == "_test.go" {
-		// TODO: need to move the file out of the dir in this case
-		if path == fuzzerPath && walker.sanitizer == "coverage" {
+		// We should not substitute the fuzzer in an overlay map.
+		// It creates problems in the coverage build.
+		// Instead we should create the modified fuzzer in its place
+		if path == fuzzerPath {
 			return
 		}
 		if filepath.Dir(path) != filepath.Dir(fuzzerPath) {
@@ -337,6 +360,7 @@ func getAllPackagesOfFile(modulePath, fuzzerFilePath string) ([]*packages.Packag
 		BuildFlags: buildFlags2,
 		Tests:      true,
 	}, "file="+fuzzerFilePath)
+	
 	if err != nil {
 		return pkgs, err
 	}
@@ -346,6 +370,7 @@ func getAllPackagesOfFile(modulePath, fuzzerFilePath string) ([]*packages.Packag
 	}
 	// There should only be one file
 	if len(pkgs) != 1 {
+		fmt.Println(pkgs[0])
 		panic("there should only be one file here")
 	}
 	fuzzerPkg := pkgs[0]

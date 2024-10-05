@@ -288,6 +288,7 @@ func TestCompileCoverageFile(t *testing.T) {
 
 			outPath := fmt.Sprintf("./compiled_fuzzer")
 			args := []string{"test",
+				"-covermode=atomic",
 				"-overlay", overlayFile.Name(),
 				"-vet=off", // otherwise vet will complain unnecessarily
 				"-c", "-o", outPath, "-v"}
@@ -318,7 +319,7 @@ func TestCompileCoverageFile(t *testing.T) {
 			}
 			os.Setenv("FUZZ_CORPUS_DIR", corpusDir)
 			var outb bytes.Buffer
-			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus")
+			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus", "-test.coverprofile=cover.out")
 			cmd.Stdout = &outb
 			cmd.Stderr = os.Stderr
 			if err := cmd.Run(); err != nil {
@@ -327,6 +328,12 @@ func TestCompileCoverageFile(t *testing.T) {
 			if outb.String() != tc.expectedCoverageOutput {
 				t.Error("Not equal")
 			}
+			bbbbb, err := os.ReadFile("cover.out")
+			if err != nil {
+				t.Fatal(err)
+			}
+			fmt.Println(string(bbbbb))
+			t.Error("Just because")
 			os.Remove(outPath)
 		})
 		continue
