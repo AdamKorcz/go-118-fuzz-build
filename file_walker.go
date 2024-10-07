@@ -71,6 +71,10 @@ func (walker *FileWalker) cleanUp() {
 			panic(err)
 		}
 	}
+	// Remove the visible fuzzer path
+	if walker.sanitizer == "coverage" {
+		os.Remove(strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go")
+	}
 	/*for _, renamedTestFile := range walker.renamedTestFiles {
 		fmt.Println("Cleaning up1... ", renamedTestFile)
 		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
@@ -152,6 +156,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 		for _, decl := range parsedFile.Decls {
 			if _, ok := decl.(*ast.FuncDecl); ok {
 				if decl.(*ast.FuncDecl).Name.Name == fuzzFuncName {
+					fmt.Printf("changing func name from %s to %s", decl.(*ast.FuncDecl).Name.Name, fmt.Sprintf("F%s", fuzzFuncName))
 					decl.(*ast.FuncDecl).Name.Name = fmt.Sprintf("F%s", fuzzFuncName)
 				}
 			}
@@ -174,7 +179,9 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 			panic(err)
 		}
 		os.Remove(walker.fuzzerPath)
-		fff, err := os.Create(walker.fuzzerPath)
+		visibleFuzzerPath := strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go"
+		fmt.Println("Creating new fuzzer on ", visibleFuzzerPath)
+		fff, err := os.Create(visibleFuzzerPath)
 		if err != nil {
 			panic(err)
 		}
@@ -188,6 +195,7 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 		if err = fff.Close(); err != nil {
 			panic(err)
 		}
+			
 
 		walker.renamedTestFiles[walker.fuzzerPath] = originalFuzzerFileCopy.Name()
 	} else if rewroteFile {

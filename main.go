@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"text/template"
 
@@ -196,6 +197,16 @@ func main() {
 	} else {
 		// coverage sanitizer
 		outPath := fmt.Sprintf("%s/%s", os.Getenv("OUT"), *flagO)
+
+		pwd, err := os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+		defer os.Chdir(pwd)
+		err = os.Chdir(filepath.Dir(walker.fuzzerPath))
+		if err != nil {
+			panic(err)
+		}
 		err = buildTestBinary(outPath, walker.overlayArgs)
 		if err != nil {
 			panic(err)
