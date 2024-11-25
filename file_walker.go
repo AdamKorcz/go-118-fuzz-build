@@ -127,7 +127,6 @@ func (walker *FileWalker) createRewrittenHarness(path string, fset1 *token.FileS
 		return err
 	}
 	visibleFuzzerPath := strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go"
-	fmt.Println("Creating new fuzzer on ", visibleFuzzerPath)
 	fff, err := os.Create(visibleFuzzerPath)
 	if err != nil {
 		return err
@@ -192,7 +191,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 				parsedFile,
 				"github.com/AdamKorcz/go-118-fuzz-build/testing")
 			rewroteFile = true
-			fmt.Println("Rewrote ", path)
 		}
 	}
 
