@@ -71,9 +71,9 @@ func (walker *FileWalker) cleanUp() {
 		}
 	}
 	// Remove the visible fuzzer path
-	if walker.sanitizer == "coverage" {
-		os.Remove(strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go")
-	}
+	//if walker.sanitizer == "coverage" {
+	os.Remove(strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go")
+	//}
 	/*for _, renamedTestFile := range walker.renamedTestFiles {
 		fmt.Println("Cleaning up1... ", renamedTestFile)
 		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
@@ -368,7 +368,9 @@ func (walker *FileWalker) getAllPackagesOfFile(modulePath string) ([]*packages.P
 	}
 	// There should only be one file
 	if len(pkgs) != 1 {
-		fmt.Println(pkgs[0])
+		for _, pkgg := range pkgs {
+			fmt.Println(pkgg)
+		}
 		panic("there should only be one file here")
 	}
 	fuzzerPkg := pkgs[0]

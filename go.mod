@@ -1,8 +1,8 @@
 module github.com/AdamKorcz/go-118-fuzz-build
 
-go 1.21
+go 1.22.9
 
-toolchain go1.22.5
+toolchain go1.23.4
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
