@@ -87,7 +87,8 @@ func (t *T) Parallel() {
 	panic(unsupportedApi("t.Parallel()"))
 }
 func (t *T) Run(name string, f func(t *T)) bool {
-	panic(unsupportedApi("t.Run()"))
+	f(t)
+	return true
 }
 
 func (t *T) Setenv(key, value string) {
