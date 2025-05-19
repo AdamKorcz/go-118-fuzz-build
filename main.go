@@ -28,6 +28,7 @@ var (
 	flagO         = flag.String("o", "", "output file")
 	flagPath      = flag.String("abs_path", "", "absolute path to fuzzer")
 	flagSanitizer = flag.String("sanitizer", "address", "The sanitizer to compile the target with. Either 'address' or 'coverage'")
+	flagCoverpkg  = flag.String("coverpkg", "./...", "the value go-118-fuzz-build passes to the 'coverpkg' flag in coverage builds. Should be the module name+'/...'")
 
 	flagRace    = flag.Bool("race", false, "enable data race detection")
 	flagTags    = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
@@ -157,7 +158,6 @@ func main() {
 			log.Fatal("failed to create temporary file:", err)
 		}
 		defer func() {
-			fmt.Println("removing mainFile.Name()")
 			err = os.Remove(mainFile.Name())
 			if err != nil {
 				panic(err)
@@ -207,13 +207,12 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		err = buildTestBinary(outPath, walker.overlayArgs)
+		err = buildTestBinary(outPath, *flagCoverpkg, walker.overlayArgs)
 		if err != nil {
 			panic(err)
 		}
 
 	}
-	fmt.Println("BUILT THE FUZZER")
 }
 
 // Packages that match one of the include patterns (default is include all packages)
@@ -383,12 +382,13 @@ func TestFuzzCorpus(t *testing.T) {
 }
 `))
 
-func buildTestBinary(outPath string, overlayArgs []string) error {
+func buildTestBinary(outPath, coverpkg string, overlayArgs []string) error {
 	args := []string{"test",
-		"-coverpkg", "./...",
+		"-coverpkg", coverpkg,
 		"-vet=off", // otherwise vet will complain unnecessarily
 		"-c", "-o", outPath, "-v"}
 	args = append(args, overlayArgs...)
+	fmt.Println(args)
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
