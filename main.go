@@ -14,9 +14,11 @@ import (
 )
 
 var (
-	flagFunc = flag.String("func", "Fuzz", "fuzzer entry point")
-	flagO    = flag.String("o", "", "output file")
-	flagPath = flag.String("abs_path", "", "absolute path to fuzzer")
+	flagFunc      = flag.String("func", "Fuzz", "fuzzer entry point")
+	flagO         = flag.String("o", "", "output file")
+	flagPath      = flag.String("abs_path", "", "absolute path to fuzzer")
+	flagSanitizer = flag.String("sanitizer", "address", "The sanitizer to compile the target with. Either 'address' or 'coverage'.")
+	flagCoverpkg  = flag.String("coverpkg", "./...", "the value go-118-fuzz-build passes to the 'coverpkg' flag in coverage builds. Should be the module name+'/...'")
 
 	flagRace    = flag.Bool("race", false, "enable data race detection")
 	flagTags    = flag.String("tags", "", "a comma-separated list of build tags to consider satisfied during the build")
