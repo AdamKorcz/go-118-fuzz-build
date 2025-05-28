@@ -178,16 +178,28 @@ func TestCompileCoverageFile(t *testing.T) {
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module1",
-			expectedCoverageOutput: fmt.Sprintf("b is:  AA\nPASS\ncoverage: 100.0%% of statements in ./...\n"),
-			expectedCoverOut: "mode: set\nmodule1/submodule2/one.go:3.17,5.2 1 1\n",
+			expectedCoverageOutput: fmt.Sprintf("b is:  AA\nPASS\ncoverage: 87.5%% of statements in module1/...\n"),
+			expectedCoverOut: `mode: set
+module1/fuzz_libFuzzer.go:13.30,14.41 1 1
+module1/fuzz_libFuzzer.go:14.41,15.20 1 1
+module1/fuzz_libFuzzer.go:15.20,17.4 1 0
+module1/fuzz_libFuzzer.go:18.3,18.29 1 1
+module1/fuzz_libFuzzer.go:18.29,19.30 1 1
+module1/fuzz_libFuzzer.go:19.30,20.31 1 1
+module1/fuzz_libFuzzer.go:20.31,22.6 1 1
+module1/submodule2/one.go:3.17,5.2 1 1
+`,
 		},
 		&CoverageFileTest{
 			module: "module2",
 			fuzzerPath: "fuzz_test.go",
 			flagFunc: "FuzzTest",
 			fuzzerPackageName: "module2",
-			expectedCoverageOutput: fmt.Sprintf("PASS\ncoverage: 100.0%% of statements in ./...\n"),
+			expectedCoverageOutput: fmt.Sprintf("PASS\ncoverage: 88.9%% of statements in module2/...\n"),
 			expectedCoverOut: `mode: set
+module2/fuzz_libFuzzer.go:10.30,11.41 1 1
+module2/fuzz_libFuzzer.go:11.41,13.20 2 1
+module2/fuzz_libFuzzer.go:13.20,15.4 1 0
 module2/submodule3/one.go:3.37,4.17 1 1
 module2/submodule3/one.go:4.17,6.3 1 1
 module2/submodule3/one.go:6.8,6.25 1 1
@@ -195,6 +207,15 @@ module2/submodule3/one.go:6.25,8.3 1 1
 module2/submodule3/one.go:8.8,10.3 1 1
 `,
 		},
+		// This is a good test but it breaks because of an upstream issue in golang: https://github.com/golang/go/issues/73802
+		/*&CoverageFileTest{
+			module: "module3",
+			fuzzerPath: "submodule1/fuzz_test.go",
+			flagFunc: "FuzzProcessItem",
+			fuzzerPackageName: "submodule1",
+			expectedCoverageOutput: fmt.Sprintf("b is:  AA\nPASS\ncoverage: 100.0%% of statements in module3/...\n"),
+			expectedCoverOut: "mode: set\nmodule1/submodule2/one.go:3.17,5.2 1 1\n",
+		},*/
 	}
 	//fmt.Println(os.Getwd())
 	for _, tc := range tests {
@@ -224,7 +245,7 @@ module2/submodule3/one.go:8.8,10.3 1 1
 			walker.sanitizer="coverage"
 			defer walker.cleanUp()
 			walker.fuzzerPath = absFuzzerPath // We should/could use getAbsPathOfFuzzFile here
-
+			fmt.Println("running ", tc.module)
 			walker.CreateAndModifyFiles(tc.module, tc.flagFunc, "", tc.fuzzerPackageName)
 			
 			// This one is probably specific to this test.
@@ -239,7 +260,7 @@ module2/submodule3/one.go:8.8,10.3 1 1
 
 			// This one could be standardized
 			outPath := fmt.Sprintf("./compiled_fuzzer")
-			err = buildTestBinary(outPath, walker.overlayArgs)
+			err = buildTestBinary(outPath, fmt.Sprintf("%s/...", tc.module), walker.overlayArgs)
 			if err != nil {
 				t.Fatal(err)
 			}

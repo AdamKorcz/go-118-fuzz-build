@@ -174,7 +174,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 	// Check ends in "_test".
 	// Could use "HasSuffix here instead"
 	if len(parsedFile.Name.Name) >= 5 && parsedFile.Name.Name[len(parsedFile.Name.Name)-5:] == "_test" {
-		fmt.Println("sourcefile: ", path)
 		if filepath.Dir(path) != filepath.Dir(walker.fuzzerPath) {
 			return
 		}
@@ -201,7 +200,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 		for _, decl := range parsedFile.Decls {
 			if _, ok := decl.(*ast.FuncDecl); ok {
 				if decl.(*ast.FuncDecl).Name.Name == fuzzFuncName {
-					fmt.Printf("changing func name from %s to %s", decl.(*ast.FuncDecl).Name.Name, fmt.Sprintf("F%s", fuzzFuncName))
 					decl.(*ast.FuncDecl).Name.Name = fmt.Sprintf("F%s", fuzzFuncName)
 				}
 			}

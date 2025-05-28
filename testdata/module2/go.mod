@@ -1,6 +1,6 @@
 module module2
 
-go 1.22.5
+go 1.24.3
 
 replace github.com/AdamKorcz/go-118-fuzz-build => ../..
 
