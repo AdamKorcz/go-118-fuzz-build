@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
@@ -365,11 +366,17 @@ func (walker *FileWalker) getAllPackagesOfFile(modulePath string) ([]*packages.P
 		return pkgs, err
 	}
 	// There should only be one file
-	if len(pkgs) != 1 {
-		for _, pkgg := range pkgs {
-			fmt.Println(pkgg)
+	uniquePackages := make([]string, 0)
+	for _, pkgg := range pkgs {
+		if !slices.Contains(uniquePackages, pkgg.PkgPath) {
+			uniquePackages = append(uniquePackages, pkgg.PkgPath)
 		}
-		panic("there should only be one file here")
+	}
+	if len(uniquePackages) != 1 {
+		for _, pkgg := range uniquePackages {
+			fmt.Println("pkg: ", pkgg)
+		}
+		panic("there should only be one package here")
 	}
 	fuzzerPkg := pkgs[0]
 	return appendPkgImports(pkgs[0], fuzzerPkg, pkgs, modulePath)
