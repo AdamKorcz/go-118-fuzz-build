@@ -1,6 +1,7 @@
 package testing
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -30,6 +31,10 @@ func unsupportedApi(name string) string {
 
 func (t *T) Cleanup(f func()) {
 	f()
+}
+
+func (t *T) Context() context.Context {
+	return context.Background()
 }
 
 func (t *T) Deadline() (deadline time.Time, ok bool) {
