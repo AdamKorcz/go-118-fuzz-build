@@ -30,9 +30,9 @@ import (
 	"os"
 	"reflect"
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math"
+	"time"
 )
 
 type F struct {
@@ -255,6 +255,45 @@ func (s *Source) fillArg(v reflect.Type, max int) reflect.Value {
 	}
 	return newElem
 }
+
+// For compliance only below
+type corpusEntry = struct {
+	Parent     string
+	Path       string
+	Data       []byte
+	Values     []any
+	Generation int
+	IsSeed     bool
+}
+
+type InternalFuzzTarget struct {
+	Name string
+	Fn   func(f *F)
+}
+
+func initFuzzFlags() {}
+
+var (
+	matchFuzz        *string
+	fuzzDuration     durationOrCountFlag
+	minimizeDuration = durationOrCountFlag{d: 60 * time.Second, allowZero: true}
+	fuzzCacheDir     *string
+	isFuzzWorker     *bool
+
+	// corpusDir is the parent directory of the fuzz test's seed corpus within
+	// the package.
+	corpusDir = "testdata/fuzz"
+)
+
+func runFuzzTests(deps testDeps, fuzzTests []InternalFuzzTarget, deadline time.Time) (ran, ok bool) {
+	return true, true
+}
+
+func runFuzzing(deps testDeps, fuzzTests []InternalFuzzTarget) (ok bool) {
+	return true
+}
+
+const fuzzWorkerExitCode = 70
 `
 )
 
@@ -497,7 +536,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		panic(err)
 	}
 	fuzzGoFile.Close()
-	newOverlayMap.Replace["/src/.go/src/testing.fuzz.go"] = fuzzGoFile.Name()
+	newOverlayMap.Replace["/root/.go/src/testing/fuzz.go"] = fuzzGoFile.Name()
 
 
 	if len(newOverlayMap.Replace) > 0 {
@@ -515,6 +554,12 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		}
 		overlayFile.Close()
 		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
+
+		bbbbbb, err := os.ReadFile(overlayFile.Name())
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("LLLL", string(bbbbbb))
 	}
 	return overlayArgs
 }

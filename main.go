@@ -179,11 +179,13 @@ func main() {
 			out = fuzzerPackage.Name + "-fuzz.a"
 		}
 
-		args := []string{"build", "-o", out}
+		args := []string{"build"}
 		args = append(args, buildFlags...)
 		if len(walker.overlayArgs) > 0 {
 			args = append(args, walker.overlayArgs...)
 		}
+		args = append(args, "-o")
+		args = append(args, out)
 		args = append(args, mainFile.Name())
 		fmt.Println("Running go ", args)
 		cmd := exec.Command("go", args...)
