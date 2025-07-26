@@ -250,7 +250,7 @@ import (
 	"strings"
 	"unsafe"
 	target {{printf "%q" .PkgPath}}
-	"github.com/AdamKorcz/go-118-fuzz-build/testing"
+	"testing"
 )
 
 // #include <stdint.h>
