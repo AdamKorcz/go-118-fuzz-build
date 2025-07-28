@@ -704,7 +704,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 
 	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/testing.go")] = testingGoFile.Name()
 
-	fmt.Println(string(updatedTestingGoContents))
+	//fmt.Println(string(updatedTestingGoContents))
 
 
 	if len(newOverlayMap.Replace) > 0 {
