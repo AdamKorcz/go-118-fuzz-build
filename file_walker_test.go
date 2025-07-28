@@ -320,3 +320,35 @@ module2/submodule3/one.go:8.8,10.3 1 1
 
 // 1:
 // Test that ensures that fuzzer is removed during coverage build
+
+func TestHookPlacement(t *testing.T) {
+	input := `func (c *common) Cleanup(f func()) {
+}	
+
+func (c *common) Context() context.Context {
+}
+
+func (t *T) Deadline() (deadline time.Time, ok bool) {
+}
+func (c *common) Error(args ...any) {
+}`
+	expected := `func (c *common) Cleanup(f func()) {
+f()
+}	
+
+func (c *common) Context() context.Context {
+return context.Background()
+}
+
+func (t *T) Deadline() (deadline time.Time, ok bool) {
+panic(unsupportedApi("t.Deadline()"))
+}
+func (c *common) Error(args ...any) {
+fmt.Println(args...)
+	panic("error")
+}`
+	got := PlaceHooks(input)
+	if expected != got {
+		panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
+	}
+}

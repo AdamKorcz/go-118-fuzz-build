@@ -9,6 +9,7 @@ import (
 	"go/printer"
 	"go/token"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -295,6 +296,144 @@ func runFuzzing(deps testDeps, fuzzTests []InternalFuzzTarget) (ok bool) {
 
 const fuzzWorkerExitCode = 70
 `
+
+	ttSourceFile = `package testing
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+)
+
+// T can be used to terminate the current fuzz iteration
+// without terminating the whole fuzz run. To do so, simply
+// panic with the text "GO-FUZZ-BUILD-PANIC" and the fuzzer
+// will recover.
+type T struct {
+	TempDirs []string
+}
+
+func NewT() *T {
+	tempDirs := make([]string, 0)
+	return &T{TempDirs: tempDirs}
+}
+
+func unsupportedApi(name string) string {
+	plsOpenIss := "Please open an issue https://github.com/AdamKorcz/go-118-fuzz-build if you need this feature."
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%s is not supported when fuzzing in libFuzzer mode\n.", name))
+	b.WriteString(plsOpenIss)
+	return b.String()
+}
+
+func (t *T) Cleanup(f func()) {
+	f()
+}
+
+func (t *T) Context() context.Context {
+	return context.Background()
+}
+
+func (t *T) Deadline() (deadline time.Time, ok bool) {
+	panic(unsupportedApi("t.Deadline()"))
+}
+
+func (t *T) Error(args ...any) {
+	fmt.Println(args...)
+	panic("error")
+}
+
+func (t *T) Errorf(format string, args ...any) {
+	fmt.Printf(format+"\n", args...)
+	panic("errorf")
+}
+
+func (t *T) Fail() {
+	panic("Called T.Fail()")
+}
+
+func (t *T) FailNow() {
+	panic("Called T.Fail()")
+	panic(unsupportedApi("t.FailNow()"))
+}
+
+func (t *T) Failed() bool {
+	panic(unsupportedApi("t.Failed()"))
+}
+
+func (t *T) Fatal(args ...any) {
+	fmt.Println(args...)
+	panic("fatal")
+}
+func (t *T) Fatalf(format string, args ...any) {
+	fmt.Printf(format+"\n", args...)
+	panic("fatal")
+}
+func (t *T) Helper() {
+	// We can't support it, but it also just impacts how failures are reported, so we can ignore it
+}
+func (t *T) Log(args ...any) {
+	fmt.Println(args...)
+}
+
+func (t *T) Logf(format string, args ...any) {
+	fmt.Println(format)
+	fmt.Println(args...)
+}
+
+func (t *T) Name() string {
+	return "libFuzzer"
+}
+
+func (t *T) Parallel() {
+	panic(unsupportedApi("t.Parallel()"))
+}
+func (t *T) Run(name string, f func(t *T)) bool {
+	f(t)
+	return true
+}
+
+func (t *T) Setenv(key, value string) {
+
+}
+
+func (t *T) Skip(args ...any) {
+	panic("GO-FUZZ-BUILD-PANIC")
+}
+func (t *T) SkipNow() {
+	panic("GO-FUZZ-BUILD-PANIC")
+}
+
+// Is not really supported. We just skip instead
+// of printing any message. A log message can be
+// added if need be.
+func (t *T) Skipf(format string, args ...any) {
+	panic("GO-FUZZ-BUILD-PANIC")
+}
+func (t *T) Skipped() bool {
+	panic(unsupportedApi("t.Skipped()"))
+}
+func (t *T) TempDir() string {
+	dir, err := os.MkdirTemp("", "fuzzdir-")
+	if err != nil {
+		panic(err)
+	}
+	t.TempDirs = append(t.TempDirs, dir)
+
+	return dir
+}
+
+func (t *T) CleanupTempDirs() {
+	if len(t.TempDirs) > 0 {
+		for _, tempDir := range t.TempDirs {
+			os.RemoveAll(tempDir)
+		}
+	}
+}
+
+`
 )
 
 type Overlay struct {
@@ -340,17 +479,7 @@ func (walker *FileWalker) cleanUp() {
 		}
 	}
 	// Remove the visible fuzzer path
-	//if walker.sanitizer == "coverage" {
 	os.Remove(strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go")
-	//}
-	/*for _, renamedTestFile := range walker.renamedTestFiles {
-		fmt.Println("Cleaning up1... ", renamedTestFile)
-		newName := strings.TrimSuffix(renamedTestFile, "_libFuzzer.go") + "_test.go"
-		err := os.Rename(renamedTestFile, oldName)
-		if err != nil {
-			panic(err)
-		}
-	}*/
 	err := os.RemoveAll(walker.tmpDir)
 	if err != nil {
 		panic(err)
@@ -527,7 +656,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		newOverlayMap.Replace[k] = v
 	}
 
-	fuzzGoFile, err := os.CreateTemp(walker.tmpDir, "")
+	fuzzGoFile, err := os.CreateTemp(walker.tmpDir, "fuzz.go")
 	if err != nil {
 		panic(err)
 	}
@@ -536,7 +665,38 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		panic(err)
 	}
 	fuzzGoFile.Close()
-	newOverlayMap.Replace["/root/.go/src/testing/fuzz.go"] = fuzzGoFile.Name()
+	out, err := exec.Command("go", "env", "-json").Output()
+    if err != nil {
+            panic(err)
+    }
+    m := make(map[string]string)
+    err = json.Unmarshal(out, &m)
+    if err != nil {
+            panic(err)
+    }
+    gorootDir := m["GOROOT"]
+
+	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
+
+	//rewrite testing.go
+	testingGoFileBytes, err := os.ReadFile(filepath.Join(gorootDir, "src/testing/testing.go"))
+	if err != nil {
+		panic(err)
+	}
+	updatedTestingGoContents := PlaceHooks(string(testingGoFileBytes))
+	testingGoFile, err := os.CreateTemp(walker.tmpDir, "testing.go")
+	if err != nil {
+		panic(err)
+	}
+	if _, err := testingGoFile.Write([]byte(updatedTestingGoContents)); err != nil {
+		testingGoFile.Close()
+		panic(err)
+	}
+	testingGoFile.Close()
+
+	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/testing.go")] = testingGoFile.Name()
+
+	fmt.Println(string(updatedTestingGoContents))
 
 
 	if len(newOverlayMap.Replace) > 0 {
@@ -603,3 +763,40 @@ func (walker *FileWalker) CreateAndModifyFiles(modulePath, fuzzerFuncName, flagO
     }
 	walker.overlayArgs = walker.CreateOverlayFile(flagOverlay)
 }
+
+// takes the file contents og go/src/testing/testing.go
+// and places the hooks and returns the updated file contents
+func PlaceHooks(fileContents string) string {
+	contentsCopy := fileContents
+	for k, v := range hookMap {
+		contentsCopy = strings.Replace(contentsCopy, k, v, 1)
+	}  
+	return contentsCopy
+}
+
+var (
+	hookMap = map[string]string {
+		"func (c *common) Cleanup(f func()) {": "func (c *common) Cleanup(f func()) {\nf()",
+		"func (c *common) Context() context.Context {": "func (c *common) Context() context.Context {\nreturn context.Background()",
+		"func (t *T) Deadline() (deadline time.Time, ok bool) {": "func (t *T) Deadline() (deadline time.Time, ok bool) {\npanic(unsupportedApi(\"t.Deadline()\"))",
+		"func (c *common) Error(args ...any) {": "func (c *common) Error(args ...any) {\nfmt.Println(args...)\n	panic(\"error\")",
+		"func (c *common) Errorf(format string, args ...any) {": "func (c *common) Errorf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"errorf\")",
+		"func (c *common) Fail() {": "func (c *common) Fail() {\npanic(\"Called T.Fail()\")",
+		"func (c *common) FailNow() {": "func (c *common) FailNow() {\npanic(unsupportedApi(\"t.FailNow()\"))",
+		"func (c *common) Failed() bool {": "func (c *common) Failed() bool {\npanic(unsupportedApi(\"t.Failed()\"))",
+		"func (c *common) Fatal(args ...any) {": "func (c *common) Fatal(args ...any) {\nfmt.Println(args...)\npanic(\"fatal\")",
+		"func (c *common) Fatalf(format string, args ...any) {": "func (c *common) Fatalf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"fatal\")",
+		"func (c *common) Helper() {": "func (c *common) Helper() {\npanic(unsupportedApi(\"t.Helper()\"))",
+		"func (c *common) Log(args ...any) {": "func (c *common) Log(args ...any) {\nfmt.Println(args...)",
+		"func (c *common) Logf(format string, args ...any) {": "func (c *common) Logf(format string, args ...any) {\nfmt.Println(format)\nfmt.Println(args...)",
+		"func (c *common) Name() string {": "func (c *common) Name() string {\nreturn \"libFuzzer\"",
+		"func (t *T) Parallel() {": "func (t *T) Parallel() {\npanic(unsupportedApi(\"t.Parallel()\"))",
+		"func (t *T) Run(name string, f func(t *T)) bool {": "func (t *T) Run(name string, f func(t *T)) bool {\nf(t)\nreturn true",
+		////////"func (c *common) Setenv(key, value string) {": "func (c *common) Setenv(key, value string) {\n"
+		"func (c *common) Skip(args ...any) {": "func (c *common) Skip(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) SkipNow(args ...any) {": "func (c *common) SkipNow(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skipf(args ...any) {": "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skipped() bool {": "func (c *common) Skipped() bool {\npanic(unsupportedApi(\"t.Skipped()\"))",
+		////////"func (c *common) TempDir() string {": "func (c *common) TempDir() string {"
+	}
+)

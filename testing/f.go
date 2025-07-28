@@ -32,7 +32,8 @@ func (c *F) Failed() bool                      { return false }
 func (c *F) Fatal(args ...any)                 {}
 func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
-	f.s.FillAndCall(ff, reflect.ValueOf(new(T)))
+	newTT := reflect.ValueOf(new(TT))
+	f.s.FillAndCall(ff, reflect.ValueOf(newTT))
 }
 func (f *F) Helper() {}
 func (c *F) Log(args ...any) {

@@ -56,7 +56,6 @@ func (t *T) Fail() {
 }
 
 func (t *T) FailNow() {
-	panic("Called T.Fail()")
 	panic(unsupportedApi("t.FailNow()"))
 }
 
@@ -133,3 +132,5 @@ func (t *T) CleanupTempDirs() {
 		}
 	}
 }
+
+// TODO: ADD TempDirs to testing.T and get CleanupTempDirs in the std lib to
