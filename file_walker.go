@@ -61,14 +61,13 @@ func (c *F) Failed() bool                      { return false }
 func (c *F) Fatal(args ...any)                 {}
 func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
-	t := &testing.T{}
-	refVal := reflect.ValueOf(t)
 	dir, err := os.MkdirTemp("", "fuzzingTmpDir")
 	if err != nil {
 		panic(err)
 	}
 	defer os.RemoveAll(dir)
-	refVal.FieldByName("tempDirsParentDir").SetString(dir)
+	t := &T{tempDirsParentDir: dir}
+	refVal := reflect.ValueOf(t)
 
 	f.s.FillAndCall(ff, refVal)
 }
@@ -779,7 +778,16 @@ func PlaceHooks(fileContents string) string {
 	contentsCopy := fileContents
 	for k, v := range hookMap {
 		contentsCopy = strings.Replace(contentsCopy, k, v, 1)
-	}  
+	}
+	contentsCopy += "\n\n"  
+	contentsCopy += `
+	func (t *T) TempDir() string {
+		tmpFuzzDir, err := os.MkdirTemp(t.tempDirsParentDir, "fuzzdir-")
+		if err != nil {
+			panic(err)
+		}
+		return tmpFuzzDir
+	}`
 	return contentsCopy
 }
 
@@ -796,7 +804,7 @@ var (
 		"func (c *common) Fatal(args ...any) {": "func (c *common) Fatal(args ...any) {\nfmt.Println(args...)\npanic(\"fatal\")",
 		"func (c *common) Fatalf(format string, args ...any) {": "func (c *common) Fatalf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"fatal\")",
 		"func (c *common) Helper() {": "func (c *common) Helper() {\nreturn",
-		"func (c *common) Log(args ...any) {": "func (c *common) Log(args ...any) {\nfmt.Println(args...)",
+		"func (c *common) Log(args ...any) {": "func (c *common) Log(args ...any) {\nfmt.Println(args...)\nreturn",
 		"func (c *common) Logf(format string, args ...any) {": "func (c *common) Logf(format string, args ...any) {\nfmt.Println(format)\nfmt.Println(args...)",
 		"func (c *common) Name() string {": "func (c *common) Name() string {\nreturn \"libFuzzer\"",
 		"func (t *T) Parallel() {": "func (t *T) Parallel() {\npanic(\"t.Parallel()\")",
@@ -807,6 +815,6 @@ var (
 		"func (c *common) Skipf(args ...any) {": "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) Skipped() bool {": "func (c *common) Skipped() bool {\npanic(\"t.Skipped()\")",
 		"type T struct {": "type T struct {\ntempDirsParentDir string",
-		"func (c *common) TempDir() string {": "func (c *common) TempDir() string {\ndir, err := os.MkdirTemp(\"t.tempDirsParentDir\", \"fuzzdir-\")\nif err != nil {\npanic(err)\n}\nreturn dir"
+		//"func (c *common) TempDir() string {": "func (c *common) TempDir() string {\ntmpFuzzDir, err := os.MkdirTemp(c.tempDirsParentDir, \"fuzzdir-\")\nif err != nil {\npanic(err)\n}\nreturn tmpFuzzDir",
 	}
 )
