@@ -61,7 +61,16 @@ func (c *F) Failed() bool                      { return false }
 func (c *F) Fatal(args ...any)                 {}
 func (c *F) Fatalf(format string, args ...any) {}
 func (f *F) Fuzz(ff any) {
-	f.s.FillAndCall(ff, reflect.ValueOf(new(T)))
+	t := &testing.T{}
+	refVal := reflect.ValueOf(t)
+	dir, err := os.MkdirTemp("", "fuzzingTmpDir")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+	refVal.FieldByName("tempDirsParentDir").SetString(dir)
+
+	f.s.FillAndCall(ff, refVal)
 }
 func (f *F) Helper() {}
 func (c *F) Log(args ...any) {
@@ -778,25 +787,26 @@ var (
 	hookMap = map[string]string {
 		"func (c *common) Cleanup(f func()) {": "func (c *common) Cleanup(f func()) {\nf()",
 		"func (c *common) Context() context.Context {": "func (c *common) Context() context.Context {\nreturn context.Background()",
-		"func (t *T) Deadline() (deadline time.Time, ok bool) {": "func (t *T) Deadline() (deadline time.Time, ok bool) {\npanic(unsupportedApi(\"t.Deadline()\"))",
+		"func (t *T) Deadline() (deadline time.Time, ok bool) {": "func (t *T) Deadline() (deadline time.Time, ok bool) {\npanic(\"t.Deadline()\")",
 		"func (c *common) Error(args ...any) {": "func (c *common) Error(args ...any) {\nfmt.Println(args...)\n	panic(\"error\")",
 		"func (c *common) Errorf(format string, args ...any) {": "func (c *common) Errorf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"errorf\")",
 		"func (c *common) Fail() {": "func (c *common) Fail() {\npanic(\"Called T.Fail()\")",
-		"func (c *common) FailNow() {": "func (c *common) FailNow() {\npanic(unsupportedApi(\"t.FailNow()\"))",
-		"func (c *common) Failed() bool {": "func (c *common) Failed() bool {\npanic(unsupportedApi(\"t.Failed()\"))",
+		"func (c *common) FailNow() {": "func (c *common) FailNow() {\npanic(\"t.FailNow()\")",
+		"func (c *common) Failed() bool {": "func (c *common) Failed() bool {\npanic(\"t.Failed()\")",
 		"func (c *common) Fatal(args ...any) {": "func (c *common) Fatal(args ...any) {\nfmt.Println(args...)\npanic(\"fatal\")",
 		"func (c *common) Fatalf(format string, args ...any) {": "func (c *common) Fatalf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"fatal\")",
-		"func (c *common) Helper() {": "func (c *common) Helper() {\npanic(unsupportedApi(\"t.Helper()\"))",
+		"func (c *common) Helper() {": "func (c *common) Helper() {\nreturn",
 		"func (c *common) Log(args ...any) {": "func (c *common) Log(args ...any) {\nfmt.Println(args...)",
 		"func (c *common) Logf(format string, args ...any) {": "func (c *common) Logf(format string, args ...any) {\nfmt.Println(format)\nfmt.Println(args...)",
 		"func (c *common) Name() string {": "func (c *common) Name() string {\nreturn \"libFuzzer\"",
-		"func (t *T) Parallel() {": "func (t *T) Parallel() {\npanic(unsupportedApi(\"t.Parallel()\"))",
+		"func (t *T) Parallel() {": "func (t *T) Parallel() {\npanic(\"t.Parallel()\")",
 		"func (t *T) Run(name string, f func(t *T)) bool {": "func (t *T) Run(name string, f func(t *T)) bool {\nf(t)\nreturn true",
 		////////"func (c *common) Setenv(key, value string) {": "func (c *common) Setenv(key, value string) {\n"
 		"func (c *common) Skip(args ...any) {": "func (c *common) Skip(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) SkipNow(args ...any) {": "func (c *common) SkipNow(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) Skipf(args ...any) {": "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
-		"func (c *common) Skipped() bool {": "func (c *common) Skipped() bool {\npanic(unsupportedApi(\"t.Skipped()\"))",
-		////////"func (c *common) TempDir() string {": "func (c *common) TempDir() string {"
+		"func (c *common) Skipped() bool {": "func (c *common) Skipped() bool {\npanic(\"t.Skipped()\")",
+		"type T struct {": "type T struct {\ntempDirsParentDir string",
+		"func (c *common) TempDir() string {": "func (c *common) TempDir() string {\ndir, err := os.MkdirTemp(\"t.tempDirsParentDir\", \"fuzzdir-\")\nif err != nil {\npanic(err)\n}\nreturn dir"
 	}
 )
