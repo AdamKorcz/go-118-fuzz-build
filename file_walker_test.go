@@ -3,11 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"os/exec"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
-
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -45,7 +44,7 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-var expectedCoverageFiles = map[string]string {
+var expectedCoverageFiles = map[string]string{
 	"module1": `
 
 package module1
@@ -136,13 +135,13 @@ func TestFuzzCorpus(t *testing.T) {
 }
 
 type CoverageFileTest struct {
-	module string
-	fuzzerPath string // relative to ./testdata/module
-	flagFunc string
-	fuzzerPackageName string
-	expectedFilePath string
+	module                 string
+	fuzzerPath             string // relative to ./testdata/module
+	flagFunc               string
+	fuzzerPackageName      string
+	expectedFilePath       string
 	expectedCoverageOutput string
-	expectedCoverOut string
+	expectedCoverOut       string
 }
 
 /*func TestCoverageFileContents(t *testing.T) {
@@ -162,7 +161,7 @@ type CoverageFileTest struct {
 			t.Error(err)
 		}
 		gotFileContents, err := os.ReadFile(tempFile)
-		if err != nil {			
+		if err != nil {
 			os.Remove(tempFile)
 			t.Error(err)
 		}
@@ -173,14 +172,14 @@ type CoverageFileTest struct {
 	}
 }*/
 
-func TTTestCompileCoverageFile(t *testing.T) {
+func TestCompileCoverageFile(t *testing.T) {
 	//fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
 		&CoverageFileTest{
-			module: "module1",
-			fuzzerPath: "fuzz_test.go",
-			flagFunc: "FuzzTest",
-			fuzzerPackageName: "module1",
+			module:                 "module1",
+			fuzzerPath:             "fuzz_test.go",
+			flagFunc:               "FuzzTest",
+			fuzzerPackageName:      "module1",
 			expectedCoverageOutput: fmt.Sprintf("b is:  AA\nPASS\ncoverage: 87.5%% of statements in module1/...\n"),
 			expectedCoverOut: `mode: set
 module1/fuzz_libFuzzer.go:13.30,14.41 1 1
@@ -194,10 +193,10 @@ module1/submodule2/one.go:3.17,5.2 1 1
 `,
 		},
 		&CoverageFileTest{
-			module: "module2",
-			fuzzerPath: "fuzz_test.go",
-			flagFunc: "FuzzTest",
-			fuzzerPackageName: "module2",
+			module:                 "module2",
+			fuzzerPath:             "fuzz_test.go",
+			flagFunc:               "FuzzTest",
+			fuzzerPackageName:      "module2",
 			expectedCoverageOutput: fmt.Sprintf("PASS\ncoverage: 88.9%% of statements in module2/...\n"),
 			expectedCoverOut: `mode: set
 module2/fuzz_libFuzzer.go:10.30,11.41 1 1
@@ -245,12 +244,12 @@ module2/submodule3/one.go:8.8,10.3 1 1
 			}
 
 			walker := NewFileWalker()
-			walker.sanitizer="coverage"
+			walker.sanitizer = "coverage"
 			defer walker.cleanUp()
 			walker.fuzzerPath = absFuzzerPath // We should/could use getAbsPathOfFuzzFile here
-			fmt.Println("running ", tc.module)
+			//fmt.Println("running ", tc.module)
 			walker.CreateAndModifyFiles(tc.module, tc.flagFunc, "", tc.fuzzerPackageName)
-			
+
 			// This one is probably specific to this test.
 			tidyArgs := []string{"mod", "tidy"}
 			tidyArgs = append(tidyArgs, walker.overlayArgs...)
@@ -267,7 +266,6 @@ module2/submodule3/one.go:8.8,10.3 1 1
 			if err != nil {
 				t.Fatal(err)
 			}
-			
 
 			// Run the built coverage binary
 			// Here we have to set up the seeds dir and moves the seeds
@@ -296,7 +294,7 @@ module2/submodule3/one.go:8.8,10.3 1 1
 
 			var outb bytes.Buffer
 			coverDir := t.TempDir()
-			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus", 
+			cmd = exec.Command(outPath, "-test.run", "TestFuzzCorpus",
 				fmt.Sprintf("-test.coverprofile=%s", filepath.Join(coverDir, "cover.out")))
 			cmd.Stdout = &outb
 			cmd.Stderr = os.Stderr
@@ -325,42 +323,180 @@ module2/submodule3/one.go:8.8,10.3 1 1
 // Test that ensures that fuzzer is removed during coverage build
 
 func TestHookPlacement(t *testing.T) {
-	input := `func (c *common) Cleanup(f func()) {
-}	
-
-func (c *common) Context() context.Context {
-}
-
-func (t *T) Deadline() (deadline time.Time, ok bool) {
-}
-func (c *common) Error(args ...any) {
-}`
-	expected := `func (c *common) Cleanup(f func()) {
+	type testCase struct {
+		source   string
+		expected string
+	}
+	testCases := []testCase{
+		{
+			source: `func (c *common) Cleanup(f func()) {
+}`,
+			expected: `func (c *common) Cleanup(f func()) {
 f()
-}	
-
-func (c *common) Context() context.Context {
+}`,
+		},
+		{
+			source: `func (c *common) Context() context.Context {
+}`,
+			expected: `func (c *common) Context() context.Context {
 return context.Background()
-}
-
-func (t *T) Deadline() (deadline time.Time, ok bool) {
+}`,
+		},
+		{
+			source: `func (t *T) Deadline() (deadline time.Time, ok bool) {
+}`,
+			expected: `func (t *T) Deadline() (deadline time.Time, ok bool) {
 panic("t.Deadline()")
-}
-func (c *common) Error(args ...any) {
+}`,
+		},
+		{
+			source: `func (c *common) Error(args ...any) {
+}`,
+			expected: `func (c *common) Error(args ...any) {
 fmt.Println(args...)
-	panic("error")
-}
+panic("error")
+}`,
+		},
+		{
+			source: `func (c *common) Errorf(format string, args ...any) {
+}`,
+			expected: `func (c *common) Errorf(format string, args ...any) {
+fmt.Printf(format+"\n", args...)
+panic("errorf")
+}`,
+		},
+		{
+			source: `func (c *common) Fail() {
+}`,
+			expected: `func (c *common) Fail() {
+panic("Called T.Fail()")
+}`,
+		},
+		{
+			source: `func (c *common) FailNow() {
+}`,
+			expected: `func (c *common) FailNow() {
+panic("t.FailNow()")
+}`,
+		},
+		{
+			source: `func (c *common) Failed() bool {
+}`,
+			expected: `func (c *common) Failed() bool {
+panic("t.Failed()")
+}`,
+		},
+		{
+			source: `func (c *common) Fatal(args ...any) {
+}`,
+			expected: `func (c *common) Fatal(args ...any) {
+fmt.Println(args...)
+panic("fatal")
+}`,
+		},
+		{
+			source: `func (c *common) Fatalf(format string, args ...any) {
+}`,
+			expected: `func (c *common) Fatalf(format string, args ...any) {
+fmt.Printf(format+"\n", args...)
+panic("fatal")
+}`,
+		}, {
+			source: `func (c *common) Helper() {
+}`,
+			expected: `func (c *common) Helper() {
+return
+}`,
+		},
+		{
+			source: `func (c *common) Log(args ...any) {
+}`,
+			expected: `func (c *common) Log(args ...any) {
+fmt.Println(args...)
+return
+}`,
+		},
+		{
+			source: `func (c *common) Logf(format string, args ...any) {
+}`,
+			expected: `func (c *common) Logf(format string, args ...any) {
+fmt.Println(format)
+fmt.Println(args...)
+return
+}`,
+		},
+		{
+			source: `func (c *common) Name() string {
+}`,
+			expected: `func (c *common) Name() string {
+return "libFuzzer"
+}`,
+		},
+		{
+			source: `func (t *T) Parallel() {
+}`,
+			expected: `func (t *T) Parallel() {
+panic("t.Parallel()")
+}`,
+		},
+		{
+			source: `func (t *T) Run(name string, f func(t *T)) bool {
+}`,
+			expected: `func (t *T) Run(name string, f func(t *T)) bool {
+f(t)
+return true
+}`,
+		},
+		{
+			source: `func (c *common) Skip(args ...any) {
+}`,
+			expected: `func (c *common) Skip(args ...any) {
+panic("GO-FUZZ-BUILD-PANIC")
+}`,
+		},
+		{
+			source: `func (c *common) SkipNow(args ...any) {
+}`,
+			expected: `func (c *common) SkipNow(args ...any) {
+panic("GO-FUZZ-BUILD-PANIC")
+}`,
+		},
+		{
+			source: `func (c *common) Skipf(args ...any) {
+}`,
+			expected: `func (c *common) Skipf(args ...any) {
+panic("GO-FUZZ-BUILD-PANIC")
+}`,
+		},
+		{
+			source: `func (c *common) Skipped() bool {
+}`,
+			expected: `func (c *common) Skipped() bool {
+panic("t.Skipped()")
+}`,
+		},
+		{
+			source: `type T struct {
+}`,
+			expected: `type T struct {
+tempDirsParentDir string
+}`,
+		},
+	}
 
-func (t *T) TempDir() string {
+	tempDirMethod := `func (t *T) TempDir() string {
 	tmpFuzzDir, err := os.MkdirTemp(t.tempDirsParentDir, "fuzzdir-")
 	if err != nil {
 		panic(err)
 	}
 	return tmpFuzzDir
 }`
-	got := PlaceHooks(input)
-	if expected != got {
-		t.Errorf("%s", cmp.Diff(got, expected))
-		//panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
+	for _, tc := range testCases {
+		got := PlaceHooks(tc.source)
+		expected := fmt.Sprintf("%s\n\n%s", tc.expected, tempDirMethod)
+		if expected != got {
+			t.Errorf("%s", cmp.Diff(got, expected))
+			//panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
+		}
 	}
 }

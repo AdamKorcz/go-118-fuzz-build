@@ -495,7 +495,6 @@ func (walker *FileWalker) cleanUp() {
 }
 
 func (walker *FileWalker) createRewrittenHarness(path string, fset1 *token.FileSet, parsedFile *ast.File) error {
-	fmt.Println("creating rewritten harness")
 	originalFuzzerContents, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -674,15 +673,15 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	}
 	fuzzGoFile.Close()
 	out, err := exec.Command("go", "env", "-json").Output()
-    if err != nil {
-            panic(err)
-    }
-    m := make(map[string]string)
-    err = json.Unmarshal(out, &m)
-    if err != nil {
-            panic(err)
-    }
-    gorootDir := m["GOROOT"]
+	if err != nil {
+		panic(err)
+	}
+	m := make(map[string]string)
+	err = json.Unmarshal(out, &m)
+	if err != nil {
+		panic(err)
+	}
+	gorootDir := m["GOROOT"]
 
 	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
 
@@ -701,11 +700,11 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		panic(err)
 	}
 	testingGoFile.Close()
+	//fmt.Println(updatedTestingGoContents)
 
 	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/testing.go")] = testingGoFile.Name()
 
 	//fmt.Println(string(updatedTestingGoContents))
-
 
 	if len(newOverlayMap.Replace) > 0 {
 		overlayFile, err := os.CreateTemp(walker.tmpDir, "ossFuzzOverlayFile.json")
@@ -755,20 +754,20 @@ func (walker *FileWalker) CreateAndModifyFiles(modulePath, fuzzerFuncName, flagO
 	}
 	fuzzerDir := filepath.Dir(walker.fuzzerPath)
 	filesInFuzzerDir, err := os.ReadDir(fuzzerDir)
-    if err != nil {
-        panic(err)
-    }
- 
-    for _, file := range filesInFuzzerDir {
-    	fi, err := os.Stat(filepath.Join(fuzzerDir, file.Name()))
-    	if err != nil {
-    		panic(err)
-    	}
-    	if !fi.Mode().IsRegular() {
-    		continue
-    	}
-    	walker.RewriteFile(filepath.Join(fuzzerDir, file.Name()), fuzzerFuncName)
-    }
+	if err != nil {
+		panic(err)
+	}
+
+	for _, file := range filesInFuzzerDir {
+		fi, err := os.Stat(filepath.Join(fuzzerDir, file.Name()))
+		if err != nil {
+			panic(err)
+		}
+		if !fi.Mode().IsRegular() {
+			continue
+		}
+		walker.RewriteFile(filepath.Join(fuzzerDir, file.Name()), fuzzerFuncName)
+	}
 	walker.overlayArgs = walker.CreateOverlayFile(flagOverlay)
 }
 
@@ -779,42 +778,42 @@ func PlaceHooks(fileContents string) string {
 	for k, v := range hookMap {
 		contentsCopy = strings.Replace(contentsCopy, k, v, 1)
 	}
-	contentsCopy += "\n\n"  
+	contentsCopy += "\n"
 	contentsCopy += `
-	func (t *T) TempDir() string {
-		tmpFuzzDir, err := os.MkdirTemp(t.tempDirsParentDir, "fuzzdir-")
-		if err != nil {
-			panic(err)
-		}
-		return tmpFuzzDir
-	}`
+func (t *T) TempDir() string {
+	tmpFuzzDir, err := os.MkdirTemp(t.tempDirsParentDir, "fuzzdir-")
+	if err != nil {
+		panic(err)
+	}
+	return tmpFuzzDir
+}`
 	return contentsCopy
 }
 
 var (
-	hookMap = map[string]string {
-		"func (c *common) Cleanup(f func()) {": "func (c *common) Cleanup(f func()) {\nf()",
-		"func (c *common) Context() context.Context {": "func (c *common) Context() context.Context {\nreturn context.Background()",
+	hookMap = map[string]string{
+		"func (c *common) Cleanup(f func()) {":                   "func (c *common) Cleanup(f func()) {\nf()",
+		"func (c *common) Context() context.Context {":           "func (c *common) Context() context.Context {\nreturn context.Background()",
 		"func (t *T) Deadline() (deadline time.Time, ok bool) {": "func (t *T) Deadline() (deadline time.Time, ok bool) {\npanic(\"t.Deadline()\")",
-		"func (c *common) Error(args ...any) {": "func (c *common) Error(args ...any) {\nfmt.Println(args...)\n	panic(\"error\")",
-		"func (c *common) Errorf(format string, args ...any) {": "func (c *common) Errorf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"errorf\")",
-		"func (c *common) Fail() {": "func (c *common) Fail() {\npanic(\"Called T.Fail()\")",
-		"func (c *common) FailNow() {": "func (c *common) FailNow() {\npanic(\"t.FailNow()\")",
-		"func (c *common) Failed() bool {": "func (c *common) Failed() bool {\npanic(\"t.Failed()\")",
-		"func (c *common) Fatal(args ...any) {": "func (c *common) Fatal(args ...any) {\nfmt.Println(args...)\npanic(\"fatal\")",
-		"func (c *common) Fatalf(format string, args ...any) {": "func (c *common) Fatalf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"fatal\")",
-		"func (c *common) Helper() {": "func (c *common) Helper() {\nreturn",
-		"func (c *common) Log(args ...any) {": "func (c *common) Log(args ...any) {\nfmt.Println(args...)\nreturn",
-		"func (c *common) Logf(format string, args ...any) {": "func (c *common) Logf(format string, args ...any) {\nfmt.Println(format)\nfmt.Println(args...)",
-		"func (c *common) Name() string {": "func (c *common) Name() string {\nreturn \"libFuzzer\"",
-		"func (t *T) Parallel() {": "func (t *T) Parallel() {\npanic(\"t.Parallel()\")",
-		"func (t *T) Run(name string, f func(t *T)) bool {": "func (t *T) Run(name string, f func(t *T)) bool {\nf(t)\nreturn true",
+		"func (c *common) Error(args ...any) {":                  "func (c *common) Error(args ...any) {\nfmt.Println(args...)\npanic(\"error\")",
+		"func (c *common) Errorf(format string, args ...any) {":  "func (c *common) Errorf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"errorf\")",
+		"func (c *common) Fail() {":                              "func (c *common) Fail() {\npanic(\"Called T.Fail()\")",
+		"func (c *common) FailNow() {":                           "func (c *common) FailNow() {\npanic(\"t.FailNow()\")",
+		"func (c *common) Failed() bool {":                       "func (c *common) Failed() bool {\npanic(\"t.Failed()\")",
+		"func (c *common) Fatal(args ...any) {":                  "func (c *common) Fatal(args ...any) {\nfmt.Println(args...)\npanic(\"fatal\")",
+		"func (c *common) Fatalf(format string, args ...any) {":  "func (c *common) Fatalf(format string, args ...any) {\nfmt.Printf(format+\"\\n\", args...)\npanic(\"fatal\")",
+		"func (c *common) Helper() {":                            "func (c *common) Helper() {\nreturn",
+		"func (c *common) Log(args ...any) {":                    "func (c *common) Log(args ...any) {\nfmt.Println(args...)\nreturn",
+		"func (c *common) Logf(format string, args ...any) {":    "func (c *common) Logf(format string, args ...any) {\nfmt.Println(format)\nfmt.Println(args...)\nreturn",
+		"func (c *common) Name() string {":                       "func (c *common) Name() string {\nreturn \"libFuzzer\"",
+		"func (t *T) Parallel() {":                               "func (t *T) Parallel() {\npanic(\"t.Parallel()\")",
+		"func (t *T) Run(name string, f func(t *T)) bool {":      "func (t *T) Run(name string, f func(t *T)) bool {\nf(t)\nreturn true",
 		////////"func (c *common) Setenv(key, value string) {": "func (c *common) Setenv(key, value string) {\n"
-		"func (c *common) Skip(args ...any) {": "func (c *common) Skip(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skip(args ...any) {":    "func (c *common) Skip(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) SkipNow(args ...any) {": "func (c *common) SkipNow(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
-		"func (c *common) Skipf(args ...any) {": "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
-		"func (c *common) Skipped() bool {": "func (c *common) Skipped() bool {\npanic(\"t.Skipped()\")",
-		"type T struct {": "type T struct {\ntempDirsParentDir string",
+		"func (c *common) Skipf(args ...any) {":   "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skipped() bool {":       "func (c *common) Skipped() bool {\npanic(\"t.Skipped()\")",
+		"type T struct {":                         "type T struct {\ntempDirsParentDir string",
 		//"func (c *common) TempDir() string {": "func (c *common) TempDir() string {\ntmpFuzzDir, err := os.MkdirTemp(c.tempDirsParentDir, \"fuzzdir-\")\nif err != nil {\npanic(err)\n}\nreturn tmpFuzzDir",
 	}
 )

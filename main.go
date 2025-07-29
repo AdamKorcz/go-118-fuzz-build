@@ -309,7 +309,6 @@ import (
 	"runtime/pprof"
 	"strings"
 	"testing"
-	customTesting "github.com/AdamKorcz/go-118-fuzz-build/testing"
 )
 
 func TestFuzzCorpus(t *testing.T) {
@@ -360,7 +359,7 @@ func TestFuzzCorpus(t *testing.T) {
 			t.Error("Failed to read corpus file", err)
 			return err
 		}
-		fuzzer := customTesting.NewF(data)
+		fuzzer := testing.NewF(data)
 		defer func(){
 			fuzzer.CleanupTempDirs()
 		}()
@@ -390,7 +389,7 @@ func buildTestBinary(outPath, coverpkg string, overlayArgs []string) error {
 		"-vet=off", // otherwise vet will complain unnecessarily
 		"-c", "-o", outPath, "-v"}
 	args = append(args, overlayArgs...)
-	fmt.Println(args)
+	fmt.Println("aaaaaaaaaaaaaaaaargs: ", args)
 	cmd := exec.Command("go", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
