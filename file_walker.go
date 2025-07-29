@@ -641,6 +641,20 @@ func stringInSlice(a string, list []string) bool {
 	return false
 }
 
+func getGoRootPath() string {
+	out, err := exec.Command("go", "env", "-json").Output()
+	if err != nil {
+		panic(err)
+	}
+	m := make(map[string]string)
+	err = json.Unmarshal(out, &m)
+	if err != nil {
+		panic(err)
+	}
+	goRootDir := m["GOROOT"]
+	return goRootDir
+}
+
 func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	overlayArgs := make([]string, 0)
 	// Merge overlay maps
@@ -672,21 +686,13 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		panic(err)
 	}
 	fuzzGoFile.Close()
-	out, err := exec.Command("go", "env", "-json").Output()
-	if err != nil {
-		panic(err)
-	}
-	m := make(map[string]string)
-	err = json.Unmarshal(out, &m)
-	if err != nil {
-		panic(err)
-	}
-	gorootDir := m["GOROOT"]
 
-	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
+	goRootDir := getGoRootPath()	
+
+	newOverlayMap.Replace[filepath.Join(goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
 
 	//rewrite testing.go
-	testingGoFileBytes, err := os.ReadFile(filepath.Join(gorootDir, "src/testing/testing.go"))
+	testingGoFileBytes, err := os.ReadFile(filepath.Join(goRootDir, "src/testing/testing.go"))
 	if err != nil {
 		panic(err)
 	}
@@ -702,7 +708,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	testingGoFile.Close()
 	//fmt.Println(updatedTestingGoContents)
 
-	newOverlayMap.Replace[filepath.Join(gorootDir, "src/testing/testing.go")] = testingGoFile.Name()
+	newOverlayMap.Replace[filepath.Join(goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
 
 	//fmt.Println(string(updatedTestingGoContents))
 
@@ -722,11 +728,11 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 		overlayFile.Close()
 		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
 
-		bbbbbb, err := os.ReadFile(overlayFile.Name())
+		/*bbbbbb, err := os.ReadFile(overlayFile.Name())
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("LLLL", string(bbbbbb))
+		fmt.Println("LLLL", string(bbbbbb))*/
 	}
 	return overlayArgs
 }
