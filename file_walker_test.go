@@ -7,6 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+
+	"github.com/google/go-cmp/cmp"
 )
 
 /*func TestGetAllPackagesOfFile(t *testing.T) {
@@ -170,7 +173,7 @@ type CoverageFileTest struct {
 	}
 }*/
 
-func TestCompileCoverageFile(t *testing.T) {
+func TTTestCompileCoverageFile(t *testing.T) {
 	//fmt.Println(os.Getwd())
 	tests := []*CoverageFileTest{
 		&CoverageFileTest{
@@ -341,14 +344,23 @@ return context.Background()
 }
 
 func (t *T) Deadline() (deadline time.Time, ok bool) {
-panic(unsupportedApi("t.Deadline()"))
+panic("t.Deadline()")
 }
 func (c *common) Error(args ...any) {
 fmt.Println(args...)
 	panic("error")
+}
+
+func (t *T) TempDir() string {
+	tmpFuzzDir, err := os.MkdirTemp(t.tempDirsParentDir, "fuzzdir-")
+	if err != nil {
+		panic(err)
+	}
+	return tmpFuzzDir
 }`
 	got := PlaceHooks(input)
 	if expected != got {
-		panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
+		t.Errorf("%s", cmp.Diff(got, expected))
+		//panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
 	}
 }

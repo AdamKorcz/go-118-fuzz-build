@@ -4,6 +4,7 @@ go 1.24.3
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24
+	github.com/google/go-cmp v0.6.0
 	golang.org/x/tools v0.23.0
 )
 
