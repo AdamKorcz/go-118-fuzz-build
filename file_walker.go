@@ -552,8 +552,6 @@ func (walker *FileWalker) RewriteFile(path, fuzzFuncName string) {
 		}
 	}
 
-	// TODO: Check if it is a "_test" pkg outside of the fuzzers dir.
-	// If it is, then we should not rewrite it.
 	fset1 := token.NewFileSet()
 	parsedFile, err := parser.ParseFile(fset1, path, nil, 0)
 	if err != nil {
@@ -680,74 +678,83 @@ func (o *Overlay) AddOverlayFile(path string) error {
 	return nil
 }
 
-func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
-	overlayArgs := make([]string, 0)
-	// Merge overlay maps
-	if usersOverlayFile != "" {
-		err := walker.overlayMap.AddOverlayFile(usersOverlayFile)
-		if err != nil {
-			panic(err)
-		}
-	}
-
+func (walker *FileWalker) CreateStdLibFuzzGoFile() error {
 	fuzzGoFile, err := os.CreateTemp(walker.tmpDir, "fuzz.go")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if _, err := fuzzGoFile.Write([]byte(fuzzGoContents)); err != nil {
 		fuzzGoFile.Close()
-		panic(err)
+		return err
 	}
 	fuzzGoFile.Close()
-
-	
-
 	walker.overlayMap.Replace[filepath.Join(walker.goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
+	return nil
+}
 
-	//rewrite testing.go
+func (walker *FileWalker) CreateStdLibTestingGoFile() error {
 	testingGoFileBytes, err := os.ReadFile(filepath.Join(walker.goRootDir, "src/testing/testing.go"))
 	if err != nil {
-		panic(err)
+		return err
 	}
 	updatedTestingGoContents := PlaceHooks(string(testingGoFileBytes))
 	testingGoFile, err := os.CreateTemp(walker.tmpDir, "testing.go")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	if _, err := testingGoFile.Write([]byte(updatedTestingGoContents)); err != nil {
 		testingGoFile.Close()
-		panic(err)
+		return err
 	}
 	testingGoFile.Close()
 	//fmt.Println(updatedTestingGoContents)
 
 	walker.overlayMap.Replace[filepath.Join(walker.goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
+	return nil
+}
 
-	//fmt.Println(string(updatedTestingGoContents))
-
-	if len(walker.overlayMap.Replace) > 0 {
-		overlayFile, err := os.CreateTemp(walker.tmpDir, "ossFuzzOverlayFile.json")
-		if err != nil {
-			panic(err)
-		}
-		overlayJson, err := json.Marshal(walker.overlayMap)
-		if err != nil {
-			panic(err)
-		}
-		if _, err := overlayFile.Write(overlayJson); err != nil {
-			overlayFile.Close()
-			panic(err)
-		}
-		overlayFile.Close()
-		overlayArgs = append(overlayArgs, "-overlay", overlayFile.Name())
-
-		/*bbbbbb, err := os.ReadFile(overlayFile.Name())
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("LLLL", string(bbbbbb))*/
+func (walker *FileWalker) SaveOverlayMapToFile() error {
+	overlayFile, err := os.CreateTemp(walker.tmpDir, "ossFuzzOverlayFile.json")
+	if err != nil {
+		return err
 	}
-	return overlayArgs
+	overlayJson, err := json.Marshal(walker.overlayMap)
+	if err != nil {
+		return err
+	}
+	if _, err := overlayFile.Write(overlayJson); err != nil {
+		overlayFile.Close()
+		return err
+	}
+	overlayFile.Close()
+	walker.overlayArgs = append(walker.overlayArgs, "-overlay", overlayFile.Name())
+	return nil
+}
+
+func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) error {
+	if usersOverlayFile != "" {
+		err := walker.overlayMap.AddOverlayFile(usersOverlayFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := walker.CreateStdLibFuzzGoFile()
+	if err != nil {
+		return err
+	}
+
+	err = walker.CreateStdLibTestingGoFile()
+	if err != nil {
+		return err
+	}
+
+	err = walker.SaveOverlayMapToFile()
+	if err != nil {
+		return err
+	}
+	
+	return nil
 }
 
 // Returns the path to the coverage test and the temp file. The user should add
@@ -787,7 +794,11 @@ func (walker *FileWalker) CreateAndModifyFiles(modulePath, fuzzerFuncName, flagO
 		}
 		walker.RewriteFile(filepath.Join(fuzzerDir, file.Name()), fuzzerFuncName)
 	}
-	walker.overlayArgs = walker.CreateOverlayFile(flagOverlay)
+	err = walker.CreateOverlayFile(flagOverlay)
+	if err != nil {
+		panic(err)
+	}
+
 }
 
 // takes the file contents og go/src/testing/testing.go
