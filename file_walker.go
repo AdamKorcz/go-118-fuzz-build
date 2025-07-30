@@ -655,26 +655,36 @@ func getGoRootPath() string {
 	return goRootDir
 }
 
+// Adds an overlay file to o.
+func (o *Overlay) AddOverlayFile(path string) error {
+	//newOverlayMap := &Overlay{Replace: make(map[string]string)}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("Could not find overlay file %s", err.Error())
+	}
+	usersOverlayMap := &Overlay{}
+	err = json.Unmarshal(b, usersOverlayMap)
+	if err != nil {
+		return fmt.Errorf("Could not read overlay file %s", err.Error())
+	}
+
+	for k, v := range usersOverlayMap.Replace {
+		if _, ok := o.Replace[k]; ok {
+			return fmt.Errorf("users overlay file overwrites existing files")
+		}
+		o.Replace[k] = v
+	}
+	return nil
+}
+
 func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	overlayArgs := make([]string, 0)
 	// Merge overlay maps
-	newOverlayMap := &Overlay{Replace: make(map[string]string)}
 	if usersOverlayFile != "" {
-		b, err := os.ReadFile(usersOverlayFile)
+		err := walker.overlayMap.AddOverlayFile(usersOverlayFile)
 		if err != nil {
-			panic(fmt.Sprintf("Could not find overlay file %s", err.Error()))
+			panic(err)
 		}
-		usersOverlayMap := &Overlay{}
-		err = json.Unmarshal(b, usersOverlayMap)
-		if err != nil {
-			panic(fmt.Sprintf("Could not read overlay file %s", err.Error()))
-		}
-		for k, v := range usersOverlayMap.Replace {
-			newOverlayMap.Replace[k] = v
-		}
-	}
-	for k, v := range walker.overlayMap.Replace {
-		newOverlayMap.Replace[k] = v
 	}
 
 	fuzzGoFile, err := os.CreateTemp(walker.tmpDir, "fuzz.go")
@@ -687,9 +697,9 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	}
 	fuzzGoFile.Close()
 
-	goRootDir := getGoRootPath()	
+	goRootDir := getGoRootPath()
 
-	newOverlayMap.Replace[filepath.Join(goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
+	walker.overlayMap.Replace[filepath.Join(goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
 
 	//rewrite testing.go
 	testingGoFileBytes, err := os.ReadFile(filepath.Join(goRootDir, "src/testing/testing.go"))
@@ -708,16 +718,16 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	testingGoFile.Close()
 	//fmt.Println(updatedTestingGoContents)
 
-	newOverlayMap.Replace[filepath.Join(goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
+	walker.overlayMap.Replace[filepath.Join(goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
 
 	//fmt.Println(string(updatedTestingGoContents))
 
-	if len(newOverlayMap.Replace) > 0 {
+	if len(walker.overlayMap.Replace) > 0 {
 		overlayFile, err := os.CreateTemp(walker.tmpDir, "ossFuzzOverlayFile.json")
 		if err != nil {
 			panic(err)
 		}
-		overlayJson, err := json.Marshal(newOverlayMap)
+		overlayJson, err := json.Marshal(walker.overlayMap)
 		if err != nil {
 			panic(err)
 		}

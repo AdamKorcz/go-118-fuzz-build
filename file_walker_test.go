@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
 )
 
 /*func TestGetAllPackagesOfFile(t *testing.T) {
@@ -499,4 +501,82 @@ tempDirsParentDir string
 			//panic(fmt.Sprintf("got: \n%s\n\nexpected: \n%s\n\n", got, expected))
 		}
 	}
+}
+
+func createOverlayFile(t *testing.T, dir string, content map[string]string) string {
+	t.Helper()
+
+	data, err := json.Marshal(Overlay{Replace: content})
+	assert.NoError(t, err)
+
+	filePath := filepath.Join(dir, "overlay.json")
+	err = os.WriteFile(filePath, data, 0644)
+	assert.NoError(t, err)
+
+	return filePath
+}
+
+func TestAddOverlayFile(t *testing.T) {
+	t.Run("returns error if file does not exist", func(t *testing.T) {
+		o := &Overlay{Replace: map[string]string{}}
+		err := o.AddOverlayFile("non-existent-file.json")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Could not find overlay file")
+	})
+
+	t.Run("returns error on invalid JSON", func(t *testing.T) {
+		dir := t.TempDir()
+		invalidFile := filepath.Join(dir, "invalid.json")
+		err := os.WriteFile(invalidFile, []byte("{invalid_json"), 0644)
+		assert.NoError(t, err)
+
+		o := &Overlay{Replace: map[string]string{}}
+		err = o.AddOverlayFile(invalidFile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "Could not read overlay file")
+	})
+
+	t.Run("merges successfully with no conflicts", func(t *testing.T) {
+		dir := t.TempDir()
+		existing := &Overlay{Replace: map[string]string{
+			"existing.go": "path/to/existing.go",
+		}}
+
+		newEntries := map[string]string{
+			"new.go": "overlay/new.go",
+		}
+		overlayFile := createOverlayFile(t, dir, newEntries)
+
+		err := existing.AddOverlayFile(overlayFile)
+		assert.NoError(t, err)
+		assert.Equal(t, "overlay/new.go", existing.Replace["new.go"])
+		assert.Equal(t, "path/to/existing.go", existing.Replace["existing.go"])
+	})
+
+	t.Run("returns error on key collision", func(t *testing.T) {
+		dir := t.TempDir()
+		existing := &Overlay{Replace: map[string]string{
+			"conflict.go": "original/conflict.go",
+		}}
+
+		conflicting := map[string]string{
+			"conflict.go": "overlay/conflict.go",
+		}
+		overlayFile := createOverlayFile(t, dir, conflicting)
+
+		err := existing.AddOverlayFile(overlayFile)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "users overlay file overwrites existing files")
+	})
+
+	t.Run("handles empty overlay file", func(t *testing.T) {
+		dir := t.TempDir()
+		existing := &Overlay{Replace: map[string]string{}}
+
+		overlayFile := createOverlayFile(t, dir, map[string]string{})
+
+		err := existing.AddOverlayFile(overlayFile)
+		assert.NoError(t, err)
+		assert.Empty(t, existing.Replace)
+	})
 }
