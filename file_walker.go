@@ -757,8 +757,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) error {
 	return nil
 }
 
-// Returns the path to the coverage test and the temp file. The user should add
-// this to the overlay map with "coverageFilePath":f.Name()"
+// Returns the path to the coverage test and the temp file.
 func (walker *FileWalker) createCoverageRunner(flagFunc, fuzzerPackageName string) error {
 	modifiedFuncName := fmt.Sprintf("F%s", flagFunc)
 	f, err := os.CreateTemp(walker.tmpDir, "coverageFile")
