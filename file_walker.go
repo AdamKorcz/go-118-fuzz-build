@@ -458,6 +458,7 @@ type FileWalker struct {
 	overlayMap    *Overlay
 	sanitizer     string
 	fuzzerPath    string
+	goRootDir     string
 	allFiles      []string
 	overlayArgs   []string
 }
@@ -467,6 +468,7 @@ func NewFileWalker() *FileWalker {
 	if err != nil {
 		panic(err)
 	}
+	goRootDir := getGoRootPath()
 	return &FileWalker{
 		renamedFiles:     make(map[string]string),
 		renamedTestFiles: make(map[string]string),
@@ -476,6 +478,7 @@ func NewFileWalker() *FileWalker {
 		overlayMap:       &Overlay{Replace: make(map[string]string)},
 		allFiles:         make([]string, 0),
 		overlayArgs:      make([]string, 0),
+		goRootDir:        goRootDir,
 	}
 }
 
@@ -697,12 +700,12 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	}
 	fuzzGoFile.Close()
 
-	goRootDir := getGoRootPath()
+	
 
-	walker.overlayMap.Replace[filepath.Join(goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
+	walker.overlayMap.Replace[filepath.Join(walker.goRootDir, "src/testing/fuzz.go")] = fuzzGoFile.Name()
 
 	//rewrite testing.go
-	testingGoFileBytes, err := os.ReadFile(filepath.Join(goRootDir, "src/testing/testing.go"))
+	testingGoFileBytes, err := os.ReadFile(filepath.Join(walker.goRootDir, "src/testing/testing.go"))
 	if err != nil {
 		panic(err)
 	}
@@ -718,7 +721,7 @@ func (walker *FileWalker) CreateOverlayFile(usersOverlayFile string) []string {
 	testingGoFile.Close()
 	//fmt.Println(updatedTestingGoContents)
 
-	walker.overlayMap.Replace[filepath.Join(goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
+	walker.overlayMap.Replace[filepath.Join(walker.goRootDir, "src/testing/testing.go")] = testingGoFile.Name()
 
 	//fmt.Println(string(updatedTestingGoContents))
 
