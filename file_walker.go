@@ -28,6 +28,7 @@ var (
 
 import (
 	"fmt"
+	"flag"
 	"os"
 	"reflect"
 	"encoding/binary"
@@ -280,7 +281,14 @@ type InternalFuzzTarget struct {
 	Fn   func(f *F)
 }
 
-func initFuzzFlags() {}
+func initFuzzFlags() {
+	matchFuzz = flag.String("test.fuzz", "", "run the fuzz test matching regexp")
+	flag.Var(&fuzzDuration, "test.fuzztime", "time to spend fuzzing; default is to run indefinitely")
+	flag.Var(&minimizeDuration, "test.fuzzminimizetime", "time to spend minimizing a value after finding a failing input")
+
+	fuzzCacheDir = flag.String("test.fuzzcachedir", "", "directory where interesting fuzzing inputs are stored (for use only by cmd/go)")
+	isFuzzWorker = flag.Bool("test.fuzzworker", false, "coordinate with the parent process to fuzz random values (for use only by cmd/go)")
+}
 
 var (
 	matchFuzz        *string
