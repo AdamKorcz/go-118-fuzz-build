@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"strings"
 )
 
 // Source takes a byteslice, and arguments can be pulled from it.
@@ -105,6 +106,53 @@ func (s *Source) FillAndCall(ff any, arg0 reflect.Value) (ok bool) {
 	if method.Kind() != reflect.Func {
 		panic(fmt.Sprintf("wrong type: %T", ff))
 	}
+	args := s.createArgs(ff, arg0)
+	fn.Call(args)
+	return true
+}
+
+func (s *Source) CreateGoTestcase(ff any, arg0 reflect.Value) string {
+	fn := reflect.ValueOf(ff)
+	method := fn.Type()
+	if method.Kind() != reflect.Func {
+		panic(fmt.Sprintf("wrong type: %T", ff))
+	}
+	args := s.createArgs(ff, arg0)
+
+	var sb strings.Builder
+	sb.WriteString("go test fuzz v1\n")
+	for i, arg := range args {
+
+		switch arg.Kind() {
+		case reflect.Ptr: // This is *testing.T
+			continue
+		case reflect.String:
+			sb.WriteString(fmt.Sprintf("string(\"%s\")", arg))
+		case reflect.Slice: // We assume this is []byte
+			sb.WriteString(fmt.Sprintf("[]byte(\"%s\")", arg))
+		/*case reflect.Int{
+			sb.WriteString(fmt.Sprintf())*/
+		default:
+			sb.WriteString(fmt.Sprintf("%s(%v)", arg.Kind(), arg))
+		}
+		// Skip newline after the last line
+		if i < method.NumIn()-1 {
+			sb.WriteString("\n")
+		}
+		
+		//fmt.Println("arg: ", arg.Kind())
+	}
+	testcase := sb.String()
+	//fmt.Println(fmt.Sprintf("created: '%s'", testcase))
+	return testcase
+}
+
+func (s *Source) createArgs(ff any, arg0 reflect.Value) []reflect.Value {
+	fn := reflect.ValueOf(ff)
+	method := fn.Type()
+	if method.Kind() != reflect.Func {
+		panic(fmt.Sprintf("wrong type: %T", ff))
+	}
 	args := make([]reflect.Value, method.NumIn())
 	args[0] = arg0
 	var dynamic []int
@@ -141,8 +189,7 @@ func (s *Source) FillAndCall(ff any, arg0 reflect.Value) (ok bool) {
 		}
 		args[argNum] = s.fillArg(method.In(argNum), argSize)
 	}
-	fn.Call(args)
-	return true
+	return args
 }
 
 func (s *Source) fillArg(v reflect.Type, max int) reflect.Value {

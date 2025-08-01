@@ -99,6 +99,96 @@ func fibonacci(size int) []byte {
 	return data
 }
 
+func TestCorpusConversion(t *testing.T) {
+	var have string
+
+	for _, tc := range []struct {
+		want string
+		data string
+		wantTestcase string
+		fuzzFunc func(t *testing.T, a, b string, c []byte, d, e int, f uint32, g uint64)
+	}{
+		{
+			want: fmt.Sprint("EVE", "NEIG", []byte("HTNINE"), int(4702111238803703110), int(5714581205724124232), uint32(1380271430), uint64(5716565763848291667)),
+			data: "AAABCDEFONETWOTHREEFOURFIVESIXSEVENEIGHTNINE",
+			wantTestcase: `go test fuzz v1
+string("EVE")
+string("NEIG")
+[]byte("HTNINE")
+int(4702111238803703110)
+int(5714581205724124232)
+uint32(1380271430)
+uint64(5716565763848291667)`,
+		fuzzFunc: func(t *testing.T, a, b string, c []byte, d, e int, f uint32, g uint64) {
+					have = fmt.Sprint(a, b, c, d, e, f, g)
+				},
+		},
+		{
+			want: fmt.Sprint("AAAA", "AAAA", []byte("AAAAAA"), int(5714581123968029783), int(5710931857861268037), uint32(1161907780), uint64(5066361917585572161)),
+			data: "ONEANDTWOANDTHREEANDFOURAAAAAAAAAAAAAAAAAAAAA",
+			wantTestcase: `go test fuzz v1
+string("AAAA")
+string("AAAA")
+[]byte("AAAAAA")
+int(5714581123968029783)
+int(5710931857861268037)
+uint32(1161907780)
+uint64(5066361917585572161)`,
+		fuzzFunc: func(t *testing.T, a, b string, c []byte, d, e int, f uint32, g uint64) {
+					have = fmt.Sprint(a, b, c, d, e, f, g)
+				},
+		},
+		{
+			want: fmt.Sprint("AAAA", "AAAA", []byte("BBBBBB"), int(5714581123968029783), int(5710931857861268037), uint32(1161907780), uint64(5066361917585572161)),
+			data: "ONEANDTWOANDTHREEANDFOURAAAAAAAAAAAAAAABBBBBB",
+			wantTestcase: `go test fuzz v1
+string("AAAA")
+string("AAAA")
+[]byte("BBBBBB")
+int(5714581123968029783)
+int(5710931857861268037)
+uint32(1161907780)
+uint64(5066361917585572161)`,
+		fuzzFunc: func(t *testing.T, a, b string, c []byte, d, e int, f uint32, g uint64) {
+					have = fmt.Sprint(a, b, c, d, e, f, g)
+				},
+		},
+	} {
+		have = "not invoked"
+		s := NewSource([]byte(tc.data))
+		haveTestcase := s.CreateGoTestcase(tc.fuzzFunc, reflect.ValueOf(new(testing.T)))
+		if haveTestcase != tc.wantTestcase {
+			t.Errorf("Created wrong testcase:got: '%q' want: '%q'", haveTestcase, tc.wantTestcase)
+		}
+		NewSource([]byte(tc.data)).FillAndCall(tc.fuzzFunc, reflect.ValueOf(new(testing.T)))
+
+		if have != tc.want {
+			t.Errorf("Created wrong testcase: have:'%q' want: '%q'", have, tc.want)
+		}
+	}
+
+
+	
+
+	//want := fmt.Sprint(wantA, wantB, wantC, wantD, wantE, wantF, wantG)
+
+	
+	/*wantTestcase := `go test fuzz v1
+string("EVE")
+string("NEIG")
+[]byte("HTNINE")
+int(4702111238803703110)
+int(5714581205724124232)
+uint32(1380271430)
+uint64(5716565763848291667)`*/
+	
+
+	
+
+
+
+}
+
 func TestInputMatcher3(t *testing.T) {
 	var have string = "not invoked"
 
