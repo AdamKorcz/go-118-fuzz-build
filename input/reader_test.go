@@ -166,27 +166,6 @@ uint64(5066361917585572161)`,
 			t.Errorf("Created wrong testcase: have:'%q' want: '%q'", have, tc.want)
 		}
 	}
-
-
-	
-
-	//want := fmt.Sprint(wantA, wantB, wantC, wantD, wantE, wantF, wantG)
-
-	
-	/*wantTestcase := `go test fuzz v1
-string("EVE")
-string("NEIG")
-[]byte("HTNINE")
-int(4702111238803703110)
-int(5714581205724124232)
-uint32(1380271430)
-uint64(5716565763848291667)`*/
-	
-
-	
-
-
-
 }
 
 func TestInputMatcher3(t *testing.T) {
