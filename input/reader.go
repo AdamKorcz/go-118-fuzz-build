@@ -1,11 +1,13 @@
 package input
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -130,8 +132,6 @@ func (s *Source) CreateGoTestcase(ff any, arg0 reflect.Value) string {
 			sb.WriteString(fmt.Sprintf("string(\"%s\")", arg))
 		case reflect.Slice: // We assume this is []byte
 			sb.WriteString(fmt.Sprintf("[]byte(\"%s\")", arg))
-		/*case reflect.Int{
-			sb.WriteString(fmt.Sprintf())*/
 		default:
 			sb.WriteString(fmt.Sprintf("%s(%v)", arg.Kind(), arg))
 		}
@@ -139,11 +139,8 @@ func (s *Source) CreateGoTestcase(ff any, arg0 reflect.Value) string {
 		if i < method.NumIn()-1 {
 			sb.WriteString("\n")
 		}
-		
-		//fmt.Println("arg: ", arg.Kind())
 	}
 	testcase := sb.String()
-	//fmt.Println(fmt.Sprintf("created: '%s'", testcase))
 	return testcase
 }
 
@@ -217,4 +214,151 @@ func (s *Source) fillArg(v reflect.Type, max int) reflect.Value {
 		panic(fmt.Sprintf("unsupported type: %T", newElem.Kind))
 	}
 	return newElem
+}
+
+func ParseGoTestcase(testcase string) ([]byte, error) {
+	lines := strings.Split(testcase, "\n")
+	if len(lines) == 0 || lines[0] != "go test fuzz v1" {
+		return nil, fmt.Errorf("invalid test case header")
+	}
+
+	var buf bytes.Buffer
+
+	// First pass: count dynamic fields
+	var dynamicIndices []int
+	var staticBuf bytes.Buffer
+	for i, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		kind, val, err := parseTypedValue(line)
+		if err != nil {
+			return nil, err
+		}
+
+		isDynamic := kind == "string" || kind == "[]byte"
+		if isDynamic {
+			dynamicIndices = append(dynamicIndices, i)
+		} else {
+			err := writeStaticValue(&staticBuf, kind, val)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Write static args first
+	buf.Write(staticBuf.Bytes())
+
+	// Write weights (equal weights for simplicity)
+	for range dynamicIndices {
+		buf.WriteByte(0x80)
+	}
+
+	// Second pass: write dynamic args
+	for _, i := range dynamicIndices {
+		line := strings.TrimSpace(lines[i+1])
+		_, val, err := parseTypedValue(line)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write([]byte(val))
+	}
+
+	return buf.Bytes(), nil
+}
+
+func writeStaticValue(buf *bytes.Buffer, kind, val string) error {
+	switch kind {
+	case "int8":
+		n, err := strconv.ParseInt(val, 10, 8)
+		if err != nil {
+			return err
+		}
+		buf.WriteByte(byte(int8(n)))
+	case "int16":
+		n, err := strconv.ParseInt(val, 10, 16)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, int16(n))
+	case "int32":
+		n, err := strconv.ParseInt(val, 10, 32)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, int32(n))
+	case "int64", "int":
+		n, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, uint64(n))
+	case "uint8":
+		n, err := strconv.ParseUint(val, 10, 8)
+		if err != nil {
+			return err
+		}
+		buf.WriteByte(byte(n))
+	case "uint16":
+		n, err := strconv.ParseUint(val, 10, 16)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, uint16(n))
+	case "uint32":
+		n, err := strconv.ParseUint(val, 10, 32)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, uint32(n))
+	case "uint64", "uint":
+		n, err := strconv.ParseUint(val, 10, 64)
+		if err != nil {
+			return err
+		}
+		binary.Write(buf, binary.BigEndian, n)
+	case "float32":
+		f, err := strconv.ParseFloat(val, 32)
+		if err != nil {
+			return err
+		}
+		bits := math.Float32bits(float32(f))
+		binary.Write(buf, binary.BigEndian, bits)
+	case "float64":
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return err
+		}
+		bits := math.Float64bits(f)
+		binary.Write(buf, binary.BigEndian, bits)
+	case "bool":
+		if val == "true" {
+			buf.WriteByte(1)
+		} else {
+			buf.WriteByte(0)
+		}
+	default:
+		return fmt.Errorf("unsupported kind: %s", kind)
+	}
+	return nil
+}
+
+func parseTypedValue(line string) (kind string, value string, err error) {
+	idx := strings.Index(line, "(")
+	if idx < 0 || !strings.HasSuffix(line, ")") {
+		return "", "", fmt.Errorf("malformed line: %q", line)
+	}
+	kind = line[:idx]
+	value = line[idx+1 : len(line)-1]
+	if kind == "string" || kind == "[]byte" {
+		unquoted, err := strconv.Unquote(value)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to unquote string/[]byte: %w", err)
+		}
+		return kind, unquoted, nil
+	}
+	return kind, value, nil
 }
