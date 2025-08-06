@@ -694,6 +694,156 @@ string("000")`,
 		}
 	},
 },
+{
+	name: "All types 1",
+	testcase: `go test fuzz v1
+int8(-12)
+uint16(65530)
+float32(3.14)
+bool(true)
+string("abc")
+[]byte("xyz")`,
+	fuzzFunc: func(t *testing.T, a int8, b uint16, c float32, d bool, e string, f []byte) {
+		if a != -12 || b != 65530 || c != 3.14 || !d || e != "abc" || string(f) != "xyz" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 2",
+	testcase: `go test fuzz v1
+int32(123456)
+uint32(7890)
+float64(6.28)
+bool(false)
+string("Ω≈ç√")
+[]byte("†¥¨ˆøπ")`,
+	fuzzFunc: func(t *testing.T, a int32, b uint32, c float64, d bool, e string, f []byte) {
+		if a != 123456 || b != 7890 || c != 6.28 || d != false || e != "Ω≈ç√" || string(f) != "†¥¨ˆøπ" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 3",
+	testcase: `go test fuzz v1
+int(42)
+uint(999)
+float32(1.23)
+float64(9.87)
+bool(true)
+string("hello")`,
+	fuzzFunc: func(t *testing.T, a int, b uint, c float32, d float64, e bool, f string) {
+		if a != 42 || b != 999 || c != 1.23 || d != 9.87 || !e || f != "hello" {
+			t.Errorf("Mismatch: %v %v %v %v %v %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 4",
+	testcase: `go test fuzz v1
+int16(-32768)
+uint64(18446744073709551615)
+float64(0.333)
+bool(false)
+string("中文测试")
+[]byte("🚀✨🧪")`,
+	fuzzFunc: func(t *testing.T, a int16, b uint64, c float64, d bool, e string, f []byte) {
+		if a != -32768 || b != 18446744073709551615 || c != 0.333 || d != false || e != "中文测试" || string(f) != "🚀✨🧪" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 5",
+	testcase: `go test fuzz v1
+int64(-1234567890)
+uint8(255)
+float32(42.0)
+float64(1.0e10)
+bool(true)
+[]byte("bytes!")`,
+	fuzzFunc: func(t *testing.T, a int64, b uint8, c float32, d float64, e bool, f []byte) {
+		if a != -1234567890 || b != 255 || c != 42.0 || d != 1.0e10 || !e || string(f) != "bytes!" {
+			t.Errorf("Mismatch: %v %v %v %v %v %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 6",
+	testcase: `go test fuzz v1
+int32(111)
+uint16(222)
+float32(3.33)
+bool(false)
+[]byte("✓")
+string("string✓")`,
+	fuzzFunc: func(t *testing.T, a int32, b uint16, c float32, d bool, e []byte, f string) {
+		if a != 111 || b != 222 || c != 3.33 || d != false || string(e) != "✓" || f != "string✓" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 7",
+	testcase: `go test fuzz v1
+int8(10)
+uint32(20)
+float64(0.123456789)
+bool(true)
+string("emoji 😎")
+[]byte("🔥💯")`,
+	fuzzFunc: func(t *testing.T, a int8, b uint32, c float64, d bool, e string, f []byte) {
+		if a != 10 || b != 20 || c != 0.123456789 || d != true || e != "emoji 😎" || string(f) != "🔥💯" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 8",
+	testcase: `go test fuzz v1
+int(1)
+uint(2)
+int64(3)
+float64(4.4)
+string("𝔘𝔫𝔦𝔠𝔬𝔡𝔢")
+bool(true)`,
+	fuzzFunc: func(t *testing.T, a int, b uint, c int64, d float64, e string, f bool) {
+		if a != 1 || b != 2 || c != 3 || d != 4.4 || e != "𝔘𝔫𝔦𝔠𝔬𝔡𝔢" || f != true {
+			t.Errorf("Mismatch: %v %v %v %v %q %v", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 9",
+	testcase: `go test fuzz v1
+int16(16)
+uint64(64)
+float32(32.32)
+bool(false)
+string("multi✓lingual")
+[]byte("🌍📚")`,
+	fuzzFunc: func(t *testing.T, a int16, b uint64, c float32, d bool, e string, f []byte) {
+		if a != 16 || b != 64 || c != 32.32 || d != false || e != "multi✓lingual" || string(f) != "🌍📚" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
+{
+	name: "All types 10",
+	testcase: `go test fuzz v1
+int64(-64)
+uint8(8)
+float64(99.99)
+bool(true)
+string("wrap-up")
+[]byte("🧠🧠🧠")`,
+	fuzzFunc: func(t *testing.T, a int64, b uint8, c float64, d bool, e string, f []byte) {
+		if a != -64 || b != 8 || c != 99.99 || d != true || e != "wrap-up" || string(f) != "🧠🧠🧠" {
+			t.Errorf("Mismatch: %v %v %v %v %q %q", a, b, c, d, e, f)
+		}
+	},
+},
 	}
 
 	for _, tc := range tests {
