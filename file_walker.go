@@ -824,6 +824,21 @@ func (t *T) TempDir() string {
 	}
 	return tmpFuzzDir
 }`
+
+	contentsCopy += `
+func (f *F) Chdir(dir string) {
+	panic("f.Chdir() is not implemented. Create an issue at github.com/AdamKorcz/go-118-fuzz-build if you need it")
+}`
+
+	contentsCopy += `
+func (f *F) Context() context.Context {
+	panic("f.Context() is not implemented. Create an issue at github.com/AdamKorcz/go-118-fuzz-build if you need it")
+}`
+
+	contentsCopy += `
+func (f *F) private() {
+}`
+
 	return contentsCopy
 }
 
