@@ -1,15 +1,21 @@
 package input
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
 )
+
+// MaxMemoryUsage defines the max memory used for all loaded raw testcases
+const MaxMemoryUsage = 2 * 1024 * 1024 * 1024 // 2 GB
 
 // Source takes a byteslice, and arguments can be pulled from it.
 type Source struct {
@@ -361,4 +367,128 @@ func parseTypedValue(line string) (kind string, value string, err error) {
 		return kind, unquoted, nil
 	}
 	return kind, value, nil
+}
+
+// ZipCorpusFromGoFuzzCases merges all fuzzing testcases from inputDir into a zip file.
+// If outputName.zip exists in $OUT, it merges into it.
+// If verbose is true, prints summary of added/skipped files.
+// Memory usage is capped and streaming is used to reduce pressure.
+func ZipCorpusFromGoFuzzCases(inputDir, outputName string, verbose bool) error {
+	zipFileName := outputName + ".zip"
+
+	outDir := os.Getenv("OUT")
+	if outDir == "" {
+		return fmt.Errorf("environment variable $OUT is not set")
+	}
+	existingZipPath := filepath.Join(outDir, zipFileName)
+	tmpZipPath := filepath.Join(os.TempDir(), zipFileName)
+
+	// Create temp zip file
+	zipFile, err := os.Create(tmpZipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+
+	// 1. Stream existing zip contents (if exists)
+	if _, err := os.Stat(existingZipPath); err == nil {
+		r, err := zip.OpenReader(existingZipPath)
+		if err != nil {
+			return fmt.Errorf("failed to open existing zip: %w", err)
+		}
+		defer r.Close()
+
+		for _, f := range r.File {
+			src, err := f.Open()
+			if err != nil {
+				continue
+			}
+			dst, err := zipWriter.Create(f.Name)
+			if err != nil {
+				src.Close()
+				return fmt.Errorf("failed to copy existing file %s into zip: %w", f.Name, err)
+			}
+			_, err = io.Copy(dst, src)
+			src.Close()
+			if err != nil {
+				return fmt.Errorf("failed to stream existing file %s: %w", f.Name, err)
+			}
+		}
+	}
+
+	// 2. Process inputDir files one at a time
+	entries, err := os.ReadDir(inputDir)
+	if err != nil {
+		return fmt.Errorf("failed to read input directory: %w", err)
+	}
+
+	var memUsed int64
+	var filesAdded, filesSkipped int
+	var skippedFilenames []string
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		fullPath := filepath.Join(inputDir, name)
+
+		content, err := os.ReadFile(fullPath)
+		if err != nil {
+			filesSkipped++
+			skippedFilenames = append(skippedFilenames, name)
+			continue
+		}
+
+		raw, err := ParseGoTestcase(string(content))
+		if err != nil {
+			filesSkipped++
+			skippedFilenames = append(skippedFilenames, name)
+			continue
+		}
+
+		memUsed += int64(len(raw))
+		if memUsed > MaxMemoryUsage {
+			filesSkipped++
+			skippedFilenames = append(skippedFilenames, name)
+			continue
+		}
+
+		dst, err := zipWriter.Create(name)
+		if err != nil {
+			return fmt.Errorf("failed to create entry in zip: %w", err)
+		}
+		_, err = dst.Write(raw)
+		if err != nil {
+			return fmt.Errorf("failed to write raw data for %s: %w", name, err)
+		}
+		filesAdded++
+	}
+
+	// Finalize zip
+	err = zipWriter.Close()
+	if err != nil {
+		return fmt.Errorf("failed to finalize zip: %w", err)
+	}
+
+	err = os.Rename(tmpZipPath, existingZipPath)
+	if err != nil {
+		return fmt.Errorf("failed to move zip file to $OUT: %w", err)
+	}
+
+	// Verbose output
+	if verbose {
+		fmt.Printf("[ZipCorpusFromGoFuzzCases] Added: %d files\n", filesAdded)
+		fmt.Printf("[ZipCorpusFromGoFuzzCases] Skipped: %d files\n", filesSkipped)
+		if filesSkipped > 0 {
+			fmt.Println("[ZipCorpusFromGoFuzzCases] Skipped files:")
+			for _, name := range skippedFilenames {
+				fmt.Printf("  - %s\n", name)
+			}
+		}
+	}
+
+	return nil
 }

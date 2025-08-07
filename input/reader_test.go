@@ -1,10 +1,14 @@
 package input
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
@@ -854,5 +858,1250 @@ string("wrap-up")
 			}
 			NewSource(data).FillAndCall(tc.fuzzFunc, reflect.ValueOf(new(testing.T)))
 		})
+	}
+}
+
+func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
+
+	t.Run("edgecase_test_10.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_10.txt"), filepath.Join(tempDir, "edgecase_test_10.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_10.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int, gotVal1 uint16, gotVal2 uint, gotVal3 int16, gotVal4 float32, gotVal5 bool) {
+				if gotVal0 != 9223372036854775807 {
+					t.Errorf("gotVal0 = %v; want 9223372036854775807", gotVal0)
+				}
+				if gotVal1 != 65535 {
+					t.Errorf("gotVal1 = %v; want 65535", gotVal1)
+				}
+				if gotVal2 != 18446744073709551615 {
+					t.Errorf("gotVal2 = %v; want 18446744073709551615", gotVal2)
+				}
+				if gotVal3 != -32768 {
+					t.Errorf("gotVal3 = %v; want -32768", gotVal3)
+				}
+				if gotVal4 != 0.0 {
+					t.Errorf("gotVal4 = %v; want 0.0", gotVal4)
+				}
+				if gotVal5 != false {
+					t.Errorf("gotVal5 = %v; want False", gotVal5)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_10.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_11.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_11.txt"), filepath.Join(tempDir, "edgecase_test_11.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_11.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint64, gotVal1 bool, gotVal2 int, gotVal3 int16, gotVal4 uint16, gotVal5 int32, gotVal6 uint32, gotVal7 float32, gotVal8 int8, gotVal9 uint, gotVal10 int64) {
+				if gotVal0 != 18446744073709551615 {
+					t.Errorf("gotVal0 = %v; want 18446744073709551615", gotVal0)
+				}
+				if gotVal1 != false {
+					t.Errorf("gotVal1 = %v; want False", gotVal1)
+				}
+				if gotVal2 != 9223372036854775807 {
+					t.Errorf("gotVal2 = %v; want 9223372036854775807", gotVal2)
+				}
+				if gotVal3 != 0 {
+					t.Errorf("gotVal3 = %v; want 0", gotVal3)
+				}
+				if gotVal4 != 65535 {
+					t.Errorf("gotVal4 = %v; want 65535", gotVal4)
+				}
+				if gotVal5 != -2147483648 {
+					t.Errorf("gotVal5 = %v; want -2147483648", gotVal5)
+				}
+				if gotVal6 != 4294967295 {
+					t.Errorf("gotVal6 = %v; want 4294967295", gotVal6)
+				}
+				if gotVal7 != 0.0 {
+					t.Errorf("gotVal7 = %v; want 0.0", gotVal7)
+				}
+				if gotVal8 != -128 {
+					t.Errorf("gotVal8 = %v; want -128", gotVal8)
+				}
+				if gotVal9 != 18446744073709551615 {
+					t.Errorf("gotVal9 = %v; want 18446744073709551615", gotVal9)
+				}
+				if gotVal10 != -9223372036854775808 {
+					t.Errorf("gotVal10 = %v; want -9223372036854775808", gotVal10)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_11.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_12.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_12.txt"), filepath.Join(tempDir, "edgecase_test_12.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_12.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint8, gotVal1 uint32, gotVal2 bool, gotVal3 int, gotVal4 int8, gotVal5 float32) {
+				if gotVal0 != 255 {
+					t.Errorf("gotVal0 = %v; want 255", gotVal0)
+				}
+				if gotVal1 != 4294967295 {
+					t.Errorf("gotVal1 = %v; want 4294967295", gotVal1)
+				}
+				if gotVal2 != false {
+					t.Errorf("gotVal2 = %v; want False", gotVal2)
+				}
+				if gotVal3 != 9223372036854775807 {
+					t.Errorf("gotVal3 = %v; want 9223372036854775807", gotVal3)
+				}
+				if gotVal4 != 127 {
+					t.Errorf("gotVal4 = %v; want 127", gotVal4)
+				}
+				if gotVal5 != float32(math.Inf(-1)) {
+					t.Errorf("gotVal5 = %v; want math.Inf(-1)", gotVal5)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_12.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_13.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_13.txt"), filepath.Join(tempDir, "edgecase_test_13.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_13.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 bool, gotVal1 uint32, gotVal2 uint8, gotVal3 float32, gotVal4 string, gotVal5 int16, gotVal6 int32, gotVal7 int8, gotVal8 uint16) {
+				if gotVal0 != true {
+					t.Errorf("gotVal0 = %v; want true", gotVal0)
+				}
+				if gotVal1 != 4294967295 {
+					t.Errorf("gotVal1 = %v; want 4294967295", gotVal1)
+				}
+				if gotVal2 != 255 {
+					t.Errorf("gotVal2 = %v; want 255", gotVal2)
+				}
+				if gotVal3 != float32(math.Inf(-1)) {
+					t.Errorf("gotVal3 = %v; want math.Inf(-1)", gotVal3)
+				}
+				if gotVal4 != "bMANGgwPGeJo\u00f8bagEnGPV\u5b57YDLlMj🚀ztZ" {
+					t.Errorf("gotVal4 = %q; want %q", gotVal4, "bMANGgwPGeJo\u00f8bagEnGPV\u5b57YDLlMj🚀ztZ")
+				}
+				if gotVal5 != -32768 {
+					t.Errorf("gotVal5 = %v; want -32768", gotVal5)
+				}
+				if gotVal6 != 2147483647 {
+					t.Errorf("gotVal6 = %v; want 2147483647", gotVal6)
+				}
+				if gotVal7 != -128 {
+					t.Errorf("gotVal7 = %v; want -128", gotVal7)
+				}
+				if gotVal8 != 65535 {
+					t.Errorf("gotVal8 = %v; want 65535", gotVal8)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_13.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_14.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_14.txt"), filepath.Join(tempDir, "edgecase_test_14.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_14.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int16, gotVal1 float64, gotVal2 []byte, gotVal3 uint16, gotVal4 int32, gotVal5 float32, gotVal6 uint8) {
+				if gotVal0 != 32767 {
+					t.Errorf("gotVal0 = %v; want 32767", gotVal0)
+				}
+				if gotVal1 != math.Inf(-1) {
+					t.Errorf("gotVal1 = %v; want math.Inf(-1)", gotVal1)
+				}
+				if string(gotVal2) != "d\\|]8R7\fEW}h:t\u00df\t\u22069Y 📦JYMX+^I#\u00a9,b\u00df#B\f-\\zLY~{12🔬\t-{~{xc?vo🧪JRn_C1}OI\u00f1📦kB\u00dfi<G" {
+					t.Errorf("gotVal2 = %q; want %q", string(gotVal2), "d\\|]8R7\fEW}h:t\u00df\t\u22069Y 📦JYMX+^I#\u00a9,b\u00df#B\f-\\zLY~{12🔬\t-{~{xc?vo🧪JRn_C1}OI\u00f1📦kB\u00dfi<G")
+				}
+				if gotVal3 != 65535 {
+					t.Errorf("gotVal3 = %v; want 65535", gotVal3)
+				}
+				if gotVal4 != -2147483648 {
+					t.Errorf("gotVal4 = %v; want -2147483648", gotVal4)
+				}
+				if gotVal5 != -1e+38 {
+					t.Errorf("gotVal5 = %v; want -1e+38", gotVal5)
+				}
+				if gotVal6 != 255 {
+					t.Errorf("gotVal6 = %v; want 255", gotVal6)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_14.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_15.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_15.txt"), filepath.Join(tempDir, "edgecase_test_15.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_15.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint8, gotVal1 int32, gotVal2 int16, gotVal3 float32, gotVal4 int64, gotVal5 uint32, gotVal6 int, gotVal7 uint, gotVal8 uint16, gotVal9 int8, gotVal10 bool, gotVal11 []byte) {
+				if gotVal0 != 255 {
+					t.Errorf("gotVal0 = %v; want 255", gotVal0)
+				}
+				if gotVal1 != -2147483648 {
+					t.Errorf("gotVal1 = %v; want -2147483648", gotVal1)
+				}
+				if gotVal2 != -32768 {
+					t.Errorf("gotVal2 = %v; want -32768", gotVal2)
+				}
+				if gotVal3 != 0.0 {
+					t.Errorf("gotVal3 = %v; want 0.0", gotVal3)
+				}
+				if gotVal4 != 9223372036854775807 {
+					t.Errorf("gotVal4 = %v; want 9223372036854775807", gotVal4)
+				}
+				if gotVal5 != 4294967295 {
+					t.Errorf("gotVal5 = %v; want 4294967295", gotVal5)
+				}
+				if gotVal6 != 9223372036854775807 {
+					t.Errorf("gotVal6 = %v; want 9223372036854775807", gotVal6)
+				}
+				if gotVal7 != 18446744073709551615 {
+					t.Errorf("gotVal7 = %v; want 18446744073709551615", gotVal7)
+				}
+				if gotVal8 != 65535 {
+					t.Errorf("gotVal8 = %v; want 65535", gotVal8)
+				}
+				if gotVal9 != -128 {
+					t.Errorf("gotVal9 = %v; want -128", gotVal9)
+				}
+				if gotVal10 != false {
+					t.Errorf("gotVal10 = %v; want False", gotVal10)
+				}
+				if string(gotVal11) != "n5K7%wt^5)Gg:sm4?P19G%Y;.=;_o\u00fc{gaq[')📦Pd_&rN\u000b0@Jm%\\a|Ez\u00df:5Ol=H" {
+					t.Errorf("gotVal11 = %q; want %q", string(gotVal11), "n5K7%wt^5)Gg:sm4?P19G%Y;.=;_o\u00fc{gaq[')📦Pd_&rN\u000b0@Jm%\\a|Ez\u00df:5Ol=H")
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_15.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_16.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_16.txt"), filepath.Join(tempDir, "edgecase_test_16.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_16.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint8, gotVal1 float64, gotVal2 int64, gotVal3 int16, gotVal4 uint32, gotVal5 float32, gotVal6 []byte, gotVal7 int, gotVal8 uint16, gotVal9 uint) {
+				if gotVal0 != 255 {
+					t.Errorf("gotVal0 = %v; want 255", gotVal0)
+				}
+				if gotVal1 != 0.0 {
+					t.Errorf("gotVal1 = %v; want 0.0", gotVal1)
+				}
+				if gotVal2 != -9223372036854775808 {
+					t.Errorf("gotVal2 = %v; want -9223372036854775808", gotVal2)
+				}
+				if gotVal3 != 32767 {
+					t.Errorf("gotVal3 = %v; want 32767", gotVal3)
+				}
+				if gotVal4 != 4294967295 {
+					t.Errorf("gotVal4 = %v; want 4294967295", gotVal4)
+				}
+				if gotVal5 != float32(math.Inf(-1)) {
+					t.Errorf("gotVal5 = %v; want math.Inf(-1)", gotVal5)
+				}
+				if string(gotVal6) != "-8gtw🔬\f[T|nb1O2e(f<j>\n@j}+hB|5o<@\u00df{KeY o\nI\u00dfTY#\fWME" {
+					t.Errorf("gotVal6 = %q; want %q", string(gotVal6), "-8gtw🔬\f[T|nb1O2e(f<j>\n@j}+hB|5o<@\u00df{KeY o\nI\u00dfTY#\fWME")
+				}
+				if gotVal7 != -9223372036854775808 {
+					t.Errorf("gotVal7 = %v; want -9223372036854775808", gotVal7)
+				}
+				if gotVal8 != 65535 {
+					t.Errorf("gotVal8 = %v; want 65535", gotVal8)
+				}
+				if gotVal9 != 18446744073709551615 {
+					t.Errorf("gotVal9 = %v; want 18446744073709551615", gotVal9)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_16.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_17.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_17.txt"), filepath.Join(tempDir, "edgecase_test_17.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_17.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int8, gotVal1 uint, gotVal2 float64, gotVal3 uint16, gotVal4 uint8, gotVal5 uint32) {
+				if gotVal0 != 0 {
+					t.Errorf("gotVal0 = %v; want 0", gotVal0)
+				}
+				if gotVal1 != 18446744073709551615 {
+					t.Errorf("gotVal1 = %v; want 18446744073709551615", gotVal1)
+				}
+				if gotVal2 != math.Inf(1) {
+					t.Errorf("gotVal2 = %v; want math.Inf(1)", gotVal2)
+				}
+				if gotVal3 != 65535 {
+					t.Errorf("gotVal3 = %v; want 65535", gotVal3)
+				}
+				if gotVal4 != 255 {
+					t.Errorf("gotVal4 = %v; want 255", gotVal4)
+				}
+				if gotVal5 != 4294967295 {
+					t.Errorf("gotVal5 = %v; want 4294967295", gotVal5)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_17.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_18.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_18.txt"), filepath.Join(tempDir, "edgecase_test_18.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_18.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int8, gotVal1 int, gotVal2 int64, gotVal3 uint8, gotVal4 uint, gotVal5 uint16) {
+				if gotVal0 != 127 {
+					t.Errorf("gotVal0 = %v; want 127", gotVal0)
+				}
+				if gotVal1 != 9223372036854775807 {
+					t.Errorf("gotVal1 = %v; want 9223372036854775807", gotVal1)
+				}
+				if gotVal2 != 9223372036854775807 {
+					t.Errorf("gotVal2 = %v; want 9223372036854775807", gotVal2)
+				}
+				if gotVal3 != 255 {
+					t.Errorf("gotVal3 = %v; want 255", gotVal3)
+				}
+				if gotVal4 != 18446744073709551615 {
+					t.Errorf("gotVal4 = %v; want 18446744073709551615", gotVal4)
+				}
+				if gotVal5 != 65535 {
+					t.Errorf("gotVal5 = %v; want 65535", gotVal5)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_18.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_19.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_19.txt"), filepath.Join(tempDir, "edgecase_test_19.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_19.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int32, gotVal1 int64, gotVal2 float64, gotVal3 int, gotVal4 int8, gotVal5 bool, gotVal6 float32, gotVal7 uint16, gotVal8 string, gotVal9 uint, gotVal10 []byte) {
+				if gotVal0 != 2147483647 {
+					t.Errorf("gotVal0 = %v; want 2147483647", gotVal0)
+				}
+				if gotVal1 != 9223372036854775807 {
+					t.Errorf("gotVal1 = %v; want 9223372036854775807", gotVal1)
+				}
+				if gotVal2 != math.Inf(-1) {
+					t.Errorf("gotVal2 = %v; want math.Inf(-1)", gotVal2)
+				}
+				if gotVal3 != 9223372036854775807 {
+					t.Errorf("gotVal3 = %v; want 9223372036854775807", gotVal3)
+				}
+				if gotVal4 != 127 {
+					t.Errorf("gotVal4 = %v; want 127", gotVal4)
+				}
+				if gotVal5 != false {
+					t.Errorf("gotVal5 = %v; want False", gotVal5)
+				}
+				if gotVal6 != 0.0 {
+					t.Errorf("gotVal6 = %v; want 0.0", gotVal6)
+				}
+				if gotVal7 != 65535 {
+					t.Errorf("gotVal7 = %v; want 65535", gotVal7)
+				}
+				if gotVal8 != "RocbigN🚀🚀N\u6c49mDIpMrkjF\u00f8Shf\u00f1🚀FHSkKCSxddUzRGidwhcquoi\u5b57jGAnewclvnVl\u5b57UufWOwGaEdpOblV\u6c49l🚀QxQ\u00f8" {
+					t.Errorf("gotVal8 = %q; want %q", gotVal8, "RocbigN🚀🚀N\u6c49mDIpMrkjF\u00f8Shf\u00f1🚀FHSkKCSxddUzRGidwhcquoi\u5b57jGAnewclvnVl\u5b57UufWOwGaEdpOblV\u6c49l🚀QxQ\u00f8")
+				}
+				if gotVal9 != 18446744073709551615 {
+					t.Errorf("gotVal9 = %v; want 18446744073709551615", gotVal9)
+				}
+				if string(gotVal10) != "\toS}55<-/#\\LKR3I0\f\u00a9E|vUK4f1aLPUX\\RY7sf4DTS" {
+					t.Errorf("gotVal10 = %q; want %q", string(gotVal10), "\toS}55<-/#\\LKR3I0\f\u00a9E|vUK4f1aLPUX\\RY7sf4DTS")
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_19.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_2.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_2.txt"), filepath.Join(tempDir, "edgecase_test_2.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_2.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 []byte, gotVal1 int32, gotVal2 uint, gotVal3 uint64, gotVal4 int64, gotVal5 uint8, gotVal6 string) {
+				if string(gotVal0) != "LZsyUPS^a\r[bD=vPFE4lZl.:S^/\\\"I4?D[7\u000b(9\nQ<|4^c[lr\u00f1\\\\'>\\\"d)'iH'{d/\rc+75X🧪 AW^\\t[<m4O\u00dfxu55🧪m/zg\\\\\\\"St" {
+					t.Errorf("gotVal0 = %q; want %q", string(gotVal0), "LZsyUPS^a\r[bD=vPFE4lZl.:S^/\\\"I4?D[7\u000b(9\nQ<|4^c[lr\u00f1\\\\'>\\\"d)'iH'{d/\rc+75X🧪 AW^\\t[<m4O\u00dfxu55🧪m/zg\\\\\\\"St")
+				}
+				if gotVal1 != 2147483647 {
+					t.Errorf("gotVal1 = %v; want 2147483647", gotVal1)
+				}
+				if gotVal2 != 18446744073709551615 {
+					t.Errorf("gotVal2 = %v; want 18446744073709551615", gotVal2)
+				}
+				if gotVal3 != 18446744073709551615 {
+					t.Errorf("gotVal3 = %v; want 18446744073709551615", gotVal3)
+				}
+				if gotVal4 != 9223372036854775807 {
+					t.Errorf("gotVal4 = %v; want 9223372036854775807", gotVal4)
+				}
+				if gotVal5 != 255 {
+					t.Errorf("gotVal5 = %v; want 255", gotVal5)
+				}
+				if gotVal6 != "haNkDH\u00f1jBmNYqAZDHeUgviQGYuJje\u00f8jGDcFtZd\u00f8vfOLwiPQynZzwuhAs\u6c49xIBe\u00f8widfh🚀UTWoE\u00f1dXIToNELuZtABQvhwlcjy\u5b57IGSk" {
+					t.Errorf("gotVal6 = %q; want %q", gotVal6, "haNkDH\u00f1jBmNYqAZDHeUgviQGYuJje\u00f8jGDcFtZd\u00f8vfOLwiPQynZzwuhAs\u6c49xIBe\u00f8widfh🚀UTWoE\u00f1dXIToNELuZtABQvhwlcjy\u5b57IGSk")
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_2.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_3.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_3.txt"), filepath.Join(tempDir, "edgecase_test_3.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_3.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 bool, gotVal1 uint32, gotVal2 uint8, gotVal3 float32, gotVal4 string, gotVal5 int16, gotVal6 int32, gotVal7 int8, gotVal8 uint16) {
+				if gotVal0 != true {
+					t.Errorf("gotVal0 = %v; want True", gotVal0)
+				}
+				if gotVal1 != 4294967295 {
+					t.Errorf("gotVal1 = %v; want 4294967295", gotVal1)
+				}
+				if gotVal2 != 255 {
+					t.Errorf("gotVal2 = %v; want 255", gotVal2)
+				}
+				if gotVal3 != float32(math.Inf(-1)) {
+					t.Errorf("gotVal3 = %v; want math.Inf(-1)", gotVal3)
+				}
+				if gotVal4 != "bMANGgwPGeJo\u00f8bagEnGPV\u5b57YDLlMj🚀ztZ" {
+					t.Errorf("gotVal4 = %q; want %q", gotVal4, "bMANGgwPGeJo\u00f8bagEnGPV\u5b57YDLlMj🚀ztZ")
+				}
+				if gotVal5 != -32768 {
+					t.Errorf("gotVal5 = %v; want -32768", gotVal5)
+				}
+				if gotVal6 != 2147483647 {
+					t.Errorf("gotVal6 = %v; want 2147483647", gotVal6)
+				}
+				if gotVal7 != -128 {
+					t.Errorf("gotVal7 = %v; want -128", gotVal7)
+				}
+				if gotVal8 != 65535 {
+					t.Errorf("gotVal8 = %v; want 65535", gotVal8)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_3.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_4.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_4.txt"), filepath.Join(tempDir, "edgecase_test_4.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_4.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint32, gotVal1 int32, gotVal2 uint, gotVal3 []byte, gotVal4 int8, gotVal5 uint8, gotVal6 int64, gotVal7 int16, gotVal8 float64) {
+				if gotVal0 != 4294967295 {
+					t.Errorf("gotVal0 = %v; want 4294967295", gotVal0)
+				}
+				if gotVal1 != -2147483648 {
+					t.Errorf("gotVal1 = %v; want -2147483648", gotVal1)
+				}
+				if gotVal2 != 18446744073709551615 {
+					t.Errorf("gotVal2 = %v; want 18446744073709551615", gotVal2)
+				}
+				if string(gotVal3) != "/,5\u00f1nP🧪jy+A=9?fpD=:WSrx|🧪s*`Q\u00a9ia~>\u00a9\\1o=6QN4S@" {
+					t.Errorf("gotVal3 = %q; want %q", string(gotVal3), "/,5\u00f1nP🧪jy+A=9?fpD=:WSrx|🧪s*`Q\u00a9ia~>\u00a9\\1o=6QN4S@")
+				}
+				if gotVal4 != -128 {
+					t.Errorf("gotVal4 = %v; want -128", gotVal4)
+				}
+				if gotVal5 != 255 {
+					t.Errorf("gotVal5 = %v; want 255", gotVal5)
+				}
+				if gotVal6 != 9223372036854775807 {
+					t.Errorf("gotVal6 = %v; want 9223372036854775807", gotVal6)
+				}
+				if gotVal7 != 0 {
+					t.Errorf("gotVal7 = %v; want 0", gotVal7)
+				}
+				if gotVal8 != 0.0 {
+					t.Errorf("gotVal8 = %v; want 0.0", gotVal8)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_4.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_5.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_5.txt"), filepath.Join(tempDir, "edgecase_test_5.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_5.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint16, gotVal1 bool, gotVal2 uint8, gotVal3 int8, gotVal4 int, gotVal5 float32, gotVal6 float64) {
+				if gotVal0 != 65535 {
+					t.Errorf("gotVal0 = %v; want 65535", gotVal0)
+				}
+				if gotVal1 != true {
+					t.Errorf("gotVal1 = %v; want True", gotVal1)
+				}
+				if gotVal2 != 255 {
+					t.Errorf("gotVal2 = %v; want 255", gotVal2)
+				}
+				if gotVal3 != -128 {
+					t.Errorf("gotVal3 = %v; want -128", gotVal3)
+				}
+				if gotVal4 != 9223372036854775807 {
+					t.Errorf("gotVal4 = %v; want 9223372036854775807", gotVal4)
+				}
+				if gotVal5 != float32(math.Inf(1)) {
+					t.Errorf("gotVal5 = %v; want math.Inf(1)", gotVal5)
+				}
+				if gotVal6 != math.Inf(-1) {
+					t.Errorf("gotVal6 = %v; want math.Inf(-1)", gotVal6)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_5.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_6.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_6.txt"), filepath.Join(tempDir, "edgecase_test_6.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_6.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int8, gotVal1 int, gotVal2 uint, gotVal3 uint32, gotVal4 uint64, gotVal5 string, gotVal6 float64, gotVal7 int64, gotVal8 int32, gotVal9 []byte) {
+				if gotVal0 != -128 {
+					t.Errorf("gotVal0 = %v; want -128", gotVal0)
+				}
+				if gotVal1 != 9223372036854775807 {
+					t.Errorf("gotVal1 = %v; want 9223372036854775807", gotVal1)
+				}
+				if gotVal2 != 18446744073709551615 {
+					t.Errorf("gotVal2 = %v; want 18446744073709551615", gotVal2)
+				}
+				if gotVal3 != 4294967295 {
+					t.Errorf("gotVal3 = %v; want 4294967295", gotVal3)
+				}
+				if gotVal4 != 18446744073709551615 {
+					t.Errorf("gotVal4 = %v; want 18446744073709551615", gotVal4)
+				}
+				if gotVal5 != "sQ\u00f1aojKLPcp\u00f8hrM\u00f1pDzX" {
+					t.Errorf("gotVal5 = %q; want %q", gotVal5, "sQ\u00f1aojKLPcp\u00f8hrM\u00f1pDzX")
+				}
+				if gotVal6 != math.Inf(-1) {
+					t.Errorf("gotVal6 = %v; want math.Inf(-1)", gotVal6)
+				}
+				if gotVal7 != -9223372036854775808 {
+					t.Errorf("gotVal7 = %v; want -9223372036854775808", gotVal7)
+				}
+				if gotVal8 != -2147483648 {
+					t.Errorf("gotVal8 = %v; want -2147483648", gotVal8)
+				}
+				if string(gotVal9) != "\"$d" {
+					t.Errorf("gotVal9 = %q; want %q", string(gotVal9), "\"$d")
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_6.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_7.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_7.txt"), filepath.Join(tempDir, "edgecase_test_7.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_7.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 int8, gotVal1 int64, gotVal2 uint16, gotVal3 uint32, gotVal4 float32, gotVal5 uint64, gotVal6 uint, gotVal7 bool, gotVal8 int32) {
+				if gotVal0 != -128 {
+					t.Errorf("gotVal0 = %v; want -128", gotVal0)
+				}
+				if gotVal1 != 9223372036854775807 {
+					t.Errorf("gotVal1 = %v; want 9223372036854775807", gotVal1)
+				}
+				if gotVal2 != 65535 {
+					t.Errorf("gotVal2 = %v; want 65535", gotVal2)
+				}
+				if gotVal3 != 4294967295 {
+					t.Errorf("gotVal3 = %v; want 4294967295", gotVal3)
+				}
+				if gotVal4 != 0.0 {
+					t.Errorf("gotVal4 = %v; want 0.0", gotVal4)
+				}
+				if gotVal5 != 18446744073709551615 {
+					t.Errorf("gotVal5 = %v; want 18446744073709551615", gotVal5)
+				}
+				if gotVal6 != 18446744073709551615 {
+					t.Errorf("gotVal6 = %v; want 18446744073709551615", gotVal6)
+				}
+				if gotVal7 != true {
+					t.Errorf("gotVal7 = %v; want True", gotVal7)
+				}
+				if gotVal8 != 2147483647 {
+					t.Errorf("gotVal8 = %v; want 2147483647", gotVal8)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_7.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_8.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_8.txt"), filepath.Join(tempDir, "edgecase_test_8.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_8.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 float32, gotVal1 int64, gotVal2 int16, gotVal3 string, gotVal4 uint32, gotVal5 uint64) {
+				if gotVal0 != float32(math.Inf(1)) {
+					t.Errorf("gotVal0 = %v; want math.Inf(1)", gotVal0)
+				}
+				if gotVal1 != 9223372036854775807 {
+					t.Errorf("gotVal1 = %v; want 9223372036854775807", gotVal1)
+				}
+				if gotVal2 != 32767 {
+					t.Errorf("gotVal2 = %v; want 32767", gotVal2)
+				}
+				if gotVal3 != "sSTJeh\u5b57btG\u6c49RfDadVGsHOvCDIQJqnGssicYcyGbGvFgwnUrr\u00f1fxxSSLi\u5b57sPYyuPwzygRiTlkguwoTZVfD\u00f1EEwdGPjPr" {
+					t.Errorf("gotVal3 = %q; want %q", gotVal3, "sSTJeh\u5b57btG\u6c49RfDadVGsHOvCDIQJqnGssicYcyGbGvFgwnUrr\u00f1fxxSSLi\u5b57sPYyuPwzygRiTlkguwoTZVfD\u00f1EEwdGPjPr")
+				}
+				if gotVal4 != 4294967295 {
+					t.Errorf("gotVal4 = %v; want 4294967295", gotVal4)
+				}
+				if gotVal5 != 18446744073709551615 {
+					t.Errorf("gotVal5 = %v; want 18446744073709551615", gotVal5)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_8.txt, but it did not")
+		}
+	})
+
+	t.Run("edgecase_test_9.txt", func(t *testing.T) {
+		tempDir := t.TempDir()
+		outDir := t.TempDir()
+		t.Setenv("OUT", outDir)
+
+		copyFile(t, filepath.Join("testdata", "edgecase_test_9.txt"), filepath.Join(tempDir, "edgecase_test_9.txt"))
+
+		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
+			t.Fatalf("failed to create zip: %v", err)
+		}
+
+		zipReader, err := zip.OpenReader(filepath.Join(outDir, "zipfuzz.zip"))
+		if err != nil {
+			t.Fatalf("failed to open zip: %v", err)
+		}
+		defer zipReader.Close()
+
+		found := false
+		for _, file := range zipReader.File {
+			if file.Name != "edgecase_test_9.txt" {
+				continue
+			}
+			found = true
+			r, err := file.Open()
+			if err != nil {
+				t.Fatalf("failed to open zip entry: %v", err)
+			}
+			data, err := io.ReadAll(r)
+			r.Close()
+			if err != nil {
+				t.Fatalf("failed to read zip entry: %v", err)
+			}
+
+			fuzzFunc := func(t *testing.T, gotVal0 uint16, gotVal1 int16, gotVal2 int, gotVal3 int8, gotVal4 float32, gotVal5 []byte, gotVal6 int64, gotVal7 uint, gotVal8 int32) {
+				if gotVal0 != 65535 {
+					t.Errorf("gotVal0 = %v; want 65535", gotVal0)
+				}
+				if gotVal1 != -32768 {
+					t.Errorf("gotVal1 = %v; want -32768", gotVal1)
+				}
+				if gotVal2 != 9223372036854775807 {
+					t.Errorf("gotVal2 = %v; want 9223372036854775807", gotVal2)
+				}
+				if gotVal3 != -128 {
+					t.Errorf("gotVal3 = %v; want -128", gotVal3)
+				}
+				if gotVal4 != 0.0 {
+					t.Errorf("gotVal4 = %v; want 0.0", gotVal4)
+				}
+				if string(gotVal5) != "Gd-iy+Tb🔬(3" {
+					t.Errorf("gotVal5 = %q; want %q", string(gotVal5), "Gd-iy+Tb🔬(3")
+				}
+				if gotVal6 != 9223372036854775807 {
+					t.Errorf("gotVal6 = %v; want 9223372036854775807", gotVal6)
+				}
+				if gotVal7 != 18446744073709551615 {
+					t.Errorf("gotVal7 = %v; want 18446744073709551615", gotVal7)
+				}
+				if gotVal8 != 2147483647 {
+					t.Errorf("gotVal8 = %v; want 2147483647", gotVal8)
+				}
+			}
+			NewSource(data).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
+			break
+		}
+		if !found {
+			t.Fatalf("expected zip to contain edgecase_test_9.txt, but it did not")
+		}
+	})
+}
+
+func copyFile(t *testing.T, src, dst string) {
+	in, err := os.Open(src)
+	if err != nil {
+		t.Fatalf("failed to open source file: %v", err)
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		t.Fatalf("failed to create destination file: %v", err)
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		t.Fatalf("failed to copy file: %v", err)
 	}
 }
