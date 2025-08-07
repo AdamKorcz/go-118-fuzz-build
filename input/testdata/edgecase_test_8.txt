@@ -1,0 +1,11 @@
+go test fuzz v1
+uint8(255)
+float64(0.0)
+int64(-9223372036854775808)
+int16(32767)
+uint32(4294967295)
+float32(-inf)
+[]byte("-8gtw🔬\x0c[T|nb1O2e(f<j>\n@j}+hB|5o<@ß{KeY o\nIßTY#\x0cWME")
+int(-9223372036854775808)
+uint16(65535)
+uint(18446744073709551615)

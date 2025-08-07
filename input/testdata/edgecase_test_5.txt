@@ -1,0 +1,7 @@
+go test fuzz v1
+float32(inf)
+int16(-32768)
+uint16(65535)
+uint32(4294967295)
+int(9223372036854775807)
+[]byte("-=7Kw{W 3qJjtM`wP\\ZR\x0bANM🔬J📦?{∆yN`W\trcE\t[g<üz🧪_tmz_pP9<&:.W\")KQr;^^,\x0cv")

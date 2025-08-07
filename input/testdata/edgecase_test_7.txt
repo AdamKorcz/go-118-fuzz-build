@@ -1,0 +1,13 @@
+go test fuzz v1
+uint8(255)
+int32(-2147483648)
+int16(-32768)
+float32(0.0)
+int64(9223372036854775807)
+uint32(4294967295)
+int(9223372036854775807)
+uint(18446744073709551615)
+uint16(65535)
+int8(-128)
+bool(False)
+[]byte("n5K7%wt^5)Gg:sm4?P19G%Y;.=;_oü{gaq[')📦Pd_&rN\x0b0@Jm%\\a|Ezß:5Ol=H")

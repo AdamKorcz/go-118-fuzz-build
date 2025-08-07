@@ -1,0 +1,10 @@
+go test fuzz v1
+string("CL9PFGMwtr0XzGrQ")
+[]byte("iS8VQ1IMK7jiEJh10UlP")
+uint32(1986328814)
+uint(3200162460272094799)
+int8(-23)
+bool(true)
+uint16(35050)
+int16(-6106)
+int64(4019422176397688357)

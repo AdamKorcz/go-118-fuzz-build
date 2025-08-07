@@ -1,0 +1,7 @@
+go test fuzz v1
+int8(0)
+uint(18446744073709551615)
+float64(inf)
+uint16(65535)
+uint8(255)
+uint32(4294967295)

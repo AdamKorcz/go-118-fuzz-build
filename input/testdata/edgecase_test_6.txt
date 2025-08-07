@@ -1,0 +1,8 @@
+go test fuzz v1
+int16(32767)
+float64(-inf)
+[]byte("d\\|]8R7\x0cEW}h:tß\t∆9Y 📦JYMX+^I#©,bß#B\x0c-\\zLY~{12🔬\t-{~{xc?vo🧪JRn_C1}OIñ📦kBßi<G")
+uint16(65535)
+int32(-2147483648)
+float32(-1e+38)
+uint8(255)

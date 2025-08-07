@@ -1,0 +1,8 @@
+go test fuzz v1
+[]byte("LZsyUPS^a\n[bD=vPFE4lZl.:S^/\"I4?D[7\x0b(9\nQ<|4^c[lrñ\">'d)'iH'{d/\nc+75X🧪 AW^\t[<m4Oßxu55🧪m/zg\"St")
+int32(2147483647)
+uint(18446744073709551615)
+uint64(18446744073709551615)
+int64(9223372036854775807)
+uint8(255)
+string("haNkDHñjBmNYqAZDHeUgviQGYuJjeøjGDcFtZdøvfOLwiPQynZzwuhAs汉xIBeøwidfh🚀UTWoEñdXIToNELuZtABQvhwlcjy字IGSk")

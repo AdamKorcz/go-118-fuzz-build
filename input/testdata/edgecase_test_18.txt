@@ -1,0 +1,7 @@
+go test fuzz v1
+float32(inf)
+int64(9223372036854775807)
+int16(32767)
+string("sSTJeh字btG汉RfDadVGsHOvCDIQJqnGssicYcyGbGvFgwnUrrñfxxSSLi字sPYyuPwzygRiTlkguwoTZVfDñEEwdGPjPr")
+uint32(4294967295)
+uint64(18446744073709551615)

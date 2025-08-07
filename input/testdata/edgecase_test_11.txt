@@ -1,0 +1,12 @@
+go test fuzz v1
+int32(2147483647)
+int64(9223372036854775807)
+float64(-inf)
+int(9223372036854775807)
+int8(127)
+bool(False)
+float32(0.0)
+uint16(65535)
+string("RocbigN🚀🚀N汉mDIpMrkjFøShfñ🚀FHSkKCSxddUzRGidwhcquoi字jGAnewclvnVl字UufWOwGaEdpOblV汉l🚀QxQø")
+uint(18446744073709551615)
+[]byte("\toS}55<-/#\\LKR3I0\x0c©E|vUK4f1aLPUX\\RY7sf4DTS")
