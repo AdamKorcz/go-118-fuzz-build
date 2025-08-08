@@ -103,6 +103,269 @@ func fibonacci(size int) []byte {
 	return data
 }
 
+func TestGetBytes(t *testing.T) {
+	// Test case 1: Normal Case - Read first 5 bytes (should return "Hello")
+	t.Run("Read 5 bytes", func(t *testing.T) {
+		// Create a new Source with different data
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		got := s.getBytes(5) // Read the first 5 bytes
+		want := []byte("Hello")
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 2: Edge Case - Read remaining bytes after first 5 (should return "World")
+	t.Run("Read remaining bytes", func(t *testing.T) {
+		// Create a new Source with different data
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		// Skip the first 5 bytes ("Hello")
+		s.getBytes(5)
+
+		// Now read the remaining bytes (should return "World")
+		got := s.getBytes(5)
+		want := []byte("World")
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 3: Edge Case - Attempt to read more bytes than available (should return full data and pad with 0)
+	t.Run("Read more than available bytes", func(t *testing.T) {
+		// Create a new Source with different data
+		data := []byte("Hello")
+		s := NewSource(data)
+
+		// Read more bytes than available, expecting the full data slice and padding with 0
+		got := s.getBytes(10) // Trying to read 10 bytes, more than the available 5 bytes
+		want := append(data, make([]byte, 5)...) // Full data + padding
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 4: Edge Case - Read when no bytes are left, but remaining data exists (should return 1 byte)
+	t.Run("Read when no bytes left, but data exists", func(t *testing.T) {
+		// Create a new Source with different data
+		data := []byte("Hello")
+		s := NewSource(data)
+
+		// Consume all data
+		s.getBytes(5)
+
+		// Now try reading more data when no bytes are left
+		got := s.getBytes(0) // This should return at least 1 byte
+		want := []byte{}   // The first byte of "Hello"
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 5: Read exactly the first 3 bytes of the string (should return "Hel")
+	t.Run("Read first 3 bytes", func(t *testing.T) {
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		got := s.getBytes(3) // Read the first 3 bytes
+		want := []byte("Hel")
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 6: Read a 3-byte slice (should return "llo")
+	t.Run("Read 3-byte slice", func(t *testing.T) {
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		// Skip the first 2 bytes and read the next 3 bytes
+		s.getBytes(2)
+		got := s.getBytes(3) // Should return "llo"
+		want := []byte("llo")
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 7: Read 3 bytes from non-continuous data (should return "Wor")
+	t.Run("Read 3 bytes from non-continuous data", func(t *testing.T) {
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		// Skip the first 6 bytes and read the next 3 bytes
+		s.getBytes(5)
+		got := s.getBytes(3) // Should return "Wor"
+		want := []byte("Wor")
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+	// Test case 1: Multiple calls to getBytes in one test, reading chunks from the data
+	t.Run("Multiple calls to getBytes", func(t *testing.T) {
+		// Create a new Source with some data
+		data := []byte("HelloWorld")
+		s := NewSource(data)
+
+		// First call reads "Hel"
+		got1 := s.getBytes(3)
+		want1 := []byte("Hel")
+		if !bytes.Equal(got1, want1) {
+			t.Errorf("got: %v, want: %v", got1, want1)
+		}
+
+		// Second call reads "loW"
+		got2 := s.getBytes(3)
+		want2 := []byte("loW")
+		if !bytes.Equal(got2, want2) {
+			t.Errorf("got: %v, want: %v", got2, want2)
+		}
+
+		// Third call reads "orl"
+		got3 := s.getBytes(3)
+		want3 := []byte("orl")
+		if !bytes.Equal(got3, want3) {
+			t.Errorf("got: %v, want: %v", got3, want3)
+		}
+	})
+
+	// Test case 2: Multiple calls with larger slices of data
+	t.Run("Multiple calls with larger slices", func(t *testing.T) {
+		// Create a new Source with some data
+		data := []byte("DataForTesting")
+		s := NewSource(data)
+
+		// First call reads "Data"
+		got1 := s.getBytes(4)
+		want1 := []byte("Data")
+		if !bytes.Equal(got1, want1) {
+			t.Errorf("got: %v, want: %v", got1, want1)
+		}
+
+		// Second call reads "ForT"
+		got2 := s.getBytes(4)
+		want2 := []byte("ForT")
+		if !bytes.Equal(got2, want2) {
+			t.Errorf("got: %v, want: %v", got2, want2)
+		}
+
+		// Third call reads "esti"
+		got3 := s.getBytes(4)
+		want3 := []byte("esti")
+		if !bytes.Equal(got3, want3) {
+			t.Errorf("got: %v, want: %v", got3, want3)
+		}
+
+		// Fourth call reads "ng" (remaining data)
+		got4 := s.getBytes(2)
+		want4 := []byte("ng")
+		if !bytes.Equal(got4, want4) {
+			t.Errorf("got: %v, want: %v", got4, want4)
+		}
+	})
+
+	// Test case 3: Multiple calls to getBytes with data of different types (strings and bytes)
+	t.Run("Read different data types", func(t *testing.T) {
+		// Create a new Source with mixed data
+		data := []byte("Hello123World")
+		s := NewSource(data)
+
+		// First call reads "Hello"
+		got1 := s.getBytes(5)
+		want1 := []byte("Hello")
+		if !bytes.Equal(got1, want1) {
+			t.Errorf("got: %v, want: %v", got1, want1)
+		}
+
+		// Second call reads "123"
+		got2 := s.getBytes(3)
+		want2 := []byte("123")
+		if !bytes.Equal(got2, want2) {
+			t.Errorf("got: %v, want: %v", got2, want2)
+		}
+
+		// Third call reads "Wor" (part of "World")
+		got3 := s.getBytes(3)
+		want3 := []byte("Wor")
+		if !bytes.Equal(got3, want3) {
+			t.Errorf("got: %v, want: %v", got3, want3)
+		}
+
+		// Fourth call reads "ld"
+		got4 := s.getBytes(2)
+		want4 := []byte("ld")
+		if !bytes.Equal(got4, want4) {
+			t.Errorf("got: %v, want: %v", got4, want4)
+		}
+	})
+
+	// Test case 4: Edge case - Read bytes after consuming all data
+	t.Run("Edge case after consuming all data", func(t *testing.T) {
+		// Create a new Source with some data
+		data := []byte("AllConsumed")
+		s := NewSource(data)
+
+		// Consume all data
+		s.getBytes(10)
+
+		// Now try reading more data when no bytes are left
+		got := s.getBytes(0) // Should return empty slice or the first byte
+		want := []byte{}      // No bytes left
+
+		if !bytes.Equal(got, want) {
+			t.Errorf("got: %v, want: %v", got, want)
+		}
+	})
+
+	// Test case 5: Mixed Data Types and Partial Reads (like 4 bytes string and 4 bytes int64 data)
+	t.Run("Mixed data types with partial reads", func(t *testing.T) {
+		// Create some data that mixes strings and integers
+		data := []byte("TestData")
+		s := NewSource(data)
+
+		// First call reads "Test" (4 bytes)
+		got1 := s.getBytes(4)
+		want1 := []byte("Test")
+		if !bytes.Equal(got1, want1) {
+			t.Errorf("got: %v, want: %v", got1, want1)
+		}
+
+		// Read next 4 bytes "Data" 
+		got2 := s.getBytes(4)
+		want2 := []byte("Data")
+		if !bytes.Equal(got2, want2) {
+			t.Errorf("got: %v, want: %v", got2, want2)
+		}
+
+		// Next, simulate reading an int64 value by adding its byte representation to the source
+		int64Data := []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00} // 1 in int64
+
+		// Read 8 bytes as an int64
+		got3 := s.getBytes(8)
+		want3 := int64Data
+		if !bytes.Equal(got3, want3) {
+			t.Errorf("got: %v, want: %v", got3, want3)
+		}
+	})
+}
+
+// Helper function to convert int64 to byte slice
+func int64ToBytes(i int64) []byte {
+	buf := make([]byte, 8)
+	binary.BigEndian.PutUint64(buf, uint64(i))
+	return buf
+}
+
 func TestCorpusConversion(t *testing.T) {
 	var have string
 
@@ -110,7 +373,7 @@ func TestCorpusConversion(t *testing.T) {
 		want         string
 		data         string
 		wantTestcase string
-		fuzzFunc     func(t *testing.T, a, b string, c []byte, d, e int, f uint32, g uint64)
+		fuzzFunc     interface{}
 	}{
 		{
 			want: fmt.Sprint("EVE", "NEIG", []byte("HTNINE"), int(4702111238803703110), int(5714581205724124232), uint32(1380271430), uint64(5716565763848291667)),
