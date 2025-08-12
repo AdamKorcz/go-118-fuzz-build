@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/AdamKorcz/cmd/convertLibFuzzerTestcaseToStdLibGo/app"
+	"github.com/AdamKorcz/go-118-fuzz-build/cmd/convertLibFuzzerTestcaseToStdLibGo/app"
 )
 
 func main() {
