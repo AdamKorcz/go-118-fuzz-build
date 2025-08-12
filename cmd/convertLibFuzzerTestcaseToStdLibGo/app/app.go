@@ -350,7 +350,7 @@ func ConvertSeedsToGoTests(seedsDir, outDir, jsonPath, funcName string) (int, er
 		name := hex.EncodeToString(sum[:]) + ".go"
 		dst := filepath.Join(outDir, name)
 
-		if err := os.WriteFile(dst, outBytes, 0o644); err != nil {
+		if err := os.WriteFile(dst, outBytes, 0o755); err != nil {
 			return written, fmt.Errorf("write %s: %w", dst, err)
 		}
 		written++
