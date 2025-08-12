@@ -248,7 +248,11 @@ func writeJSONMap(path string, m map[string][]string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp.Name(), path)
+	err = os.Rename(tmp.Name(), path)
+	if err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o755)
 }
 
 // MergeFuncTypesIntoJSON loads (or creates) jsonOut and adds funcName -> types
