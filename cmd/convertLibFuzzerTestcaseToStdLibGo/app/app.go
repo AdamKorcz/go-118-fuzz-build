@@ -252,7 +252,7 @@ func writeJSONMap(path string, m map[string][]string) error {
 	if err != nil {
 		return err
 	}
-	return os.Chmod(path, 0o755)
+	return os.Chmod(path, 0o644)
 }
 
 // MergeFuncTypesIntoJSON loads (or creates) jsonOut and adds funcName -> types
@@ -354,7 +354,7 @@ func ConvertSeedsToGoTests(seedsDir, outDir, jsonPath, funcName string) (int, er
 		name := hex.EncodeToString(sum[:]) + ".go"
 		dst := filepath.Join(outDir, name)
 
-		if err := os.WriteFile(dst, outBytes, 0o755); err != nil {
+		if err := os.WriteFile(dst, outBytes, 0o644); err != nil {
 			return written, fmt.Errorf("write %s: %w", dst, err)
 		}
 		written++
