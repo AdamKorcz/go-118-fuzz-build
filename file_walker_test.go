@@ -13,34 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-/*func TestGetAllPackagesOfFile(t *testing.T) {
-	pwd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	walker.
-	pkgs, err := getAllPackagesOfFile("module1", filepath.Join("testdata", "module1", "fuzz_test.go"))
-	if err != nil {
-		t.Fatalf("failed to load packages: %s", err)
-	}
-	if pkgs[0].Name != "module1" {
-		t.Error("pkgs[0].Name should be 'module1'")
-	}
-	if pkgs[1].Name != "submodule1" {
-		t.Error("pkgs[1].Name should be 'submodule1'")
-	}
-	if pkgs[2].Name != "submodule2" {
-		t.Error("pkgs[2].Name should be 'submodule2'")
-	}
-	if pkgs[3].Name != "submodule1_test" {
-		t.Error("pkgs[3].Name should be 'submodule1_test'")
-	}
-	if pkgs[4].Name != "main" {
-		t.Error("pkgs[4].Name should be 'main'")
-	}
-	os.Chdir(pwd)
-}*/
-
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
@@ -493,6 +465,14 @@ tempDirsParentDir string
 		panic(err)
 	}
 	return tmpFuzzDir
+}
+func (f *F) Chdir(dir string) {
+	panic("f.Chdir() is not implemented. Create an issue at github.com/AdamKorcz/go-118-fuzz-build if you need it")
+}
+func (f *F) Context() context.Context {
+	panic("f.Context() is not implemented. Create an issue at github.com/AdamKorcz/go-118-fuzz-build if you need it")
+}
+func (f *F) private() {
 }`
 	for _, tc := range testCases {
 		got := PlaceHooks(tc.source)
