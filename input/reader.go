@@ -130,24 +130,38 @@ func (s *Source) CreateGoTestcase(ff any, arg0 reflect.Value) string {
 	var sb strings.Builder
 	sb.WriteString("go test fuzz v1\n")
 	for i, arg := range args {
-
 		switch arg.Kind() {
-		case reflect.Ptr: // This is *testing.T
+		case reflect.Ptr: // *testing.T
+			// skip
 			continue
+
 		case reflect.String:
-			sb.WriteString(fmt.Sprintf("string(\"%s\")", arg))
-		case reflect.Slice: // We assume this is []byte
-			sb.WriteString(fmt.Sprintf("[]byte(\"%s\")", arg))
+			// Properly escape as a Go string literal.
+			sb.WriteString("string(")
+			sb.WriteString(strconv.Quote(arg.String()))
+			sb.WriteString(")")
+
+		case reflect.Slice:
+			// Only []byte is supported; escape contents as Go string literal.
+			if arg.Type().Elem().Kind() == reflect.Uint8 {
+				sb.WriteString("[]byte(")
+				sb.WriteString(strconv.Quote(string(arg.Bytes())))
+				sb.WriteString(")")
+			} else {
+				panic(fmt.Sprintf("unsupported slice elem type: %v", arg.Type().Elem()))
+			}
+
 		default:
-			sb.WriteString(fmt.Sprintf("%s(%v)", arg.Kind(), arg))
+			// Other primitives: emit kind(value).
+			// Use the underlying value printed with %v, which is fine for ints/floats/bools.
+			sb.WriteString(fmt.Sprintf("%s(%v)", arg.Kind(), arg.Interface()))
 		}
-		// Skip newline after the last line
+
 		if i < method.NumIn()-1 {
 			sb.WriteString("\n")
 		}
 	}
-	testcase := sb.String()
-	return testcase
+	return sb.String()
 }
 
 func (s *Source) createArgs(ff any, arg0 reflect.Value) []reflect.Value {
