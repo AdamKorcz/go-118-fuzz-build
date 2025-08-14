@@ -488,9 +488,159 @@ uint64(5066361917585572161)`,
 	)
 }
 
-// Batches a bunch of single-[]byte fixtures through the shared helper.
-// Keep appending to the "cases" slice with the rest of your arrays.
-func TestProvidedByteArrays_SingleSlice_Batch(t *testing.T) {
+
+
+// Helper for single []byte fuzz functions:
+// - consumes 1 weight byte, expecting arg == in[1:]
+// - validates CreateGoTestcase corpus with unmarshalCorpusFile
+func runSingleSliceByteCase(t *testing.T, name string, in []byte) {
+	t.Helper()
+	const wantArgCount = 1
+
+	// 1) Capture expected from raw input.
+	var expected []byte
+	expector := func(tt *testing.T, a []byte) {
+		expected = a
+	}
+	NewSource(in).FillAndCall(expector, reflect.ValueOf(new(testing.T)))
+
+	// 2) Real fuzz func to capture for comparison.
+	var captured []byte
+	fuzzFunc := func(tt *testing.T, a []byte) {
+		captured = a
+	}
+
+	// 3) Create and decode corpus.
+	s := NewSource(in)
+	corpus := s.CreateGoTestcase(fuzzFunc, reflect.ValueOf(new(testing.T)))
+
+	vals, err := unmarshalCorpusFile([]byte(corpus))
+	if err != nil {
+		t.Fatalf("%s: unmarshalCorpusFile failed: %v\nCorpus:\n%s", name, err, corpus)
+	}
+	if len(vals) != wantArgCount {
+		t.Fatalf("%s: decoded values count mismatch: got %d want %d", name, len(vals), wantArgCount)
+	}
+
+	// 4) Strict type checks and extraction.
+	a, ok := vals[0].([]byte)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg0: %T (want []byte)", name, vals[0])
+	}
+
+	// 5) Invoke fuzz func using decoded values.
+	fuzzFunc(new(testing.T), a)
+
+	// 6) Compare captured vs expected.
+	if !bytes.Equal(captured, expected) {
+		t.Fatalf("%s: []byte arg mismatch:\nhave %v\nwant %v", name, captured, expected)
+	}
+}
+
+
+
+// Single string parameter version that mirrors runSingleSliceByteCase.
+func runSingleStringCase(t *testing.T, name string, in []byte) {
+	t.Helper()
+	const wantArgCount = 1
+
+	// 1) Expected via raw input.
+	var expected string
+	expector := func(tt *testing.T, a string) {
+		expected = a
+	}
+	NewSource(in).FillAndCall(expector, reflect.ValueOf(new(testing.T)))
+
+	// 2) Capture holder.
+	var captured string
+	fuzzFunc := func(tt *testing.T, a string) {
+		captured = a
+	}
+
+	// 3) Create/decode corpus.
+	s := NewSource(in)
+	corpus := s.CreateGoTestcase(fuzzFunc, reflect.ValueOf(new(testing.T)))
+
+	vals, err := unmarshalCorpusFile([]byte(corpus))
+	if err != nil {
+		t.Fatalf("%s: unmarshalCorpusFile failed: %v\nCorpus:\n%s", name, err, corpus)
+	}
+	if len(vals) != wantArgCount {
+		t.Fatalf("%s: decoded values count mismatch: got %d want %d", name, len(vals), wantArgCount)
+	}
+
+	// 4) Strict type checks and extraction.
+	a, ok := vals[0].(string)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg0: %T (want string)", name, vals[0])
+	}
+
+	// 5) Invoke using decoded values.
+	fuzzFunc(new(testing.T), a)
+
+	// 6) Compare.
+	if captured != expected {
+		t.Fatalf("%s: string arg mismatch:\nhave %q\nwant %q", name, captured, expected)
+	}
+}
+
+// (string, []byte) version that mirrors runSingleSliceByteCase.
+func runStringAndBytesCase(t *testing.T, name string, in []byte) {
+	t.Helper()
+	const wantArgCount = 2
+
+	// 1) Expected via raw input.
+	var expectedA string
+	var expectedB []byte
+	expector := func(tt *testing.T, a string, b []byte) {
+		expectedA = a
+		expectedB = b
+	}
+	NewSource(in).FillAndCall(expector, reflect.ValueOf(new(testing.T)))
+
+	// 2) Capture holders.
+	var capturedA string
+	var capturedB []byte
+	fuzzFunc := func(tt *testing.T, a string, b []byte) {
+		capturedA = a
+		capturedB = b
+	}
+
+	// 3) Create/decode corpus.
+	s := NewSource(in)
+	corpus := s.CreateGoTestcase(fuzzFunc, reflect.ValueOf(new(testing.T)))
+
+	vals, err := unmarshalCorpusFile([]byte(corpus))
+	if err != nil {
+		t.Fatalf("%s: unmarshalCorpusFile failed: %v\nCorpus:\n%s", name, err, corpus)
+	}
+	if len(vals) != wantArgCount {
+		t.Fatalf("%s: decoded values count mismatch: got %d want %d", name, len(vals), wantArgCount)
+	}
+
+	// 4) Strict type checks and extraction.
+	a, ok := vals[0].(string)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg0: %T (want string)", name, vals[0])
+	}
+	b, ok := vals[1].([]byte)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg1: %T (want []byte)", name, vals[1])
+	}
+
+	// 5) Invoke using decoded values.
+	fuzzFunc(new(testing.T), a, b)
+
+	// 6) Compare captured vs expected.
+	if capturedA != expectedA {
+		t.Fatalf("%s: string arg mismatch:\nhave %q\nwant %q", name, capturedA, expectedA)
+	}
+	if !bytes.Equal(capturedB, expectedB) {
+		t.Fatalf("%s: []byte arg mismatch:\nhave %v\nwant %v", name, capturedB, expectedB)
+	}
+}
+
+func TestProvidedByteArrays_AsString_Batch(t *testing.T) {
 	cases := [][]byte{
 		// 1
 		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29, 0xD8, 0x01, 0x00, 0x00, 0x00, 0x8E, 0x8E, 0x20, 0x32, 0x0A, 0x2D, 0x2D, 0x2D, 0x2D, 0x60, 0x2D, 0x2D, 0x2D, 0x2D, 0x34, 0x33, 0x30, 0x36, 0x36, 0x35, 0x33, 0x38, 0x30, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x31, 0x3A, 0x0A, 0x28, 0x0A, 0x0A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x0A, 0x0D, 0x0A, 0x0D, 0x10, 0x00, 0x0D},
@@ -532,43 +682,84 @@ func TestProvidedByteArrays_SingleSlice_Batch(t *testing.T) {
 		{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xC2, 0xC2, 0xC2, 0x27, 0x8E, 0x2F, 0x00, 0x25, 0xF2, 0x8E, 0x8E, 0xF2, 0x8E, 0x8E, 0x8E, 0x00, 0xF5},
 		// 20
 		{0x00, 0x00, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x5A, 0x71, 0x2C, 0xF2, 0x8E, 0x8E, 0xF2, 0x8E, 0x8E, 0x2C, 0xF2, 0x8E, 0x8E, 0x1C, 0x00, 0x00, 0x00, 0x00, 0x8E, 0xFE},
-		// …append the remaining arrays here in order …
 	}
 
 	for i, in := range cases {
+		runSingleStringCase(t, fmt.Sprintf("provided-byte-array-%03d-as-string", i+1), in)
 		runSingleSliceByteCase(t, fmt.Sprintf("provided-byte-array-%03d-single-slice", i+1), in)
+		runStringAndBytesCase(t, fmt.Sprintf("provided-byte-array-%03d-str-and-bytes", i+1), in)
+		runStringBytesUint32Case(t, fmt.Sprintf("provided-byte-array-%03d-str-and-bytes", i+1), in)
 	}
 }
 
-// Helper for single []byte fuzz functions:
-// - consumes 1 weight byte, expecting arg == in[1:]
-// - validates CreateGoTestcase corpus with unmarshalCorpusFile
-func runSingleSliceByteCase(t *testing.T, name string, in []byte) {
-	t.Run(name, func(t *testing.T) {
-		expected := in[1:]
 
-		var captured []byte
-		fuzzFunc := func(t *testing.T, a []byte) { captured = a }
-		wantArgCount := reflect.TypeOf(fuzzFunc).NumIn() - 1
+// Runs the pipeline for a 3-arg fuzz func: (string, []byte, uint32).
+// It derives the expected values from the generated corpus (like runSingleSliceByteCase)
+// and then invokes FillAndCall to verify the captured arguments match exactly.
+func runStringBytesUint32Case(t *testing.T, name string, in []byte) {
+	t.Helper()
+	const wantArgCount = 3
 
-		// Build and validate corpus text.
-		s := NewSource(in)
-		corpus := s.CreateGoTestcase(fuzzFunc, reflect.ValueOf(new(testing.T)))
+	// 1) Capture expected values by simulating the raw input call.
+	var expectedA string
+	var expectedB []byte
+	var expectedC uint32
+	expector := func(tt *testing.T, a string, b []byte, c uint32) {
+		expectedA = a
+		expectedB = b
+		expectedC = c
+	}
+	NewSource(in).FillAndCall(expector, reflect.ValueOf(new(testing.T)))
 
-		vals, err := unmarshalCorpusFile([]byte(corpus))
-		if err != nil {
-			t.Fatalf("unmarshalCorpusFile failed: %v\nCorpus:\n%s", err, corpus)
-		}
-		if len(vals) != wantArgCount {
-			t.Fatalf("decoded values count mismatch: got %d want %d", len(vals), wantArgCount)
-		}
+	// 2) Real fuzz func for final capture/comparison.
+	var capturedA string
+	var capturedB []byte
+	var capturedC uint32
+	fuzzFunc := func(tt *testing.T, a string, b []byte, c uint32) {
+		capturedA = a
+		capturedB = b
+		capturedC = c
+	}
 
-		// Invoke with the raw input and assert exact bytes.
-		NewSource(in).FillAndCall(fuzzFunc, reflect.ValueOf(new(testing.T)))
-		if !bytes.Equal(captured, expected) {
-			t.Fatalf("have %v want %v", captured, expected)
-		}
-	})
+	// 3) Create corpus and decode it.
+	s := NewSource(in)
+	corpus := s.CreateGoTestcase(fuzzFunc, reflect.ValueOf(new(testing.T)))
+
+	vals, err := unmarshalCorpusFile([]byte(corpus))
+	if err != nil {
+		t.Fatalf("%s: unmarshalCorpusFile failed: %v\nCorpus:\n%s", name, err, corpus)
+	}
+	if len(vals) != wantArgCount {
+		t.Fatalf("%s: decoded values count mismatch: got %d want %d", name, len(vals), wantArgCount)
+	}
+
+	// 4) Strict type checks: must be string, []byte, uint32.
+	a, ok := vals[0].(string)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg0: %T (want string)", name, vals[0])
+	}
+	b, ok := vals[1].([]byte)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg1: %T (want []byte)", name, vals[1])
+	}
+	c, ok := vals[2].(uint32)
+	if !ok {
+		t.Fatalf("%s: unexpected type for arg2: %T (want uint32)", name, vals[2])
+	}
+
+	// 5) Invoke fuzzFunc using the decoded corpus values (no FillAndCall).
+	fuzzFunc(new(testing.T), a, b, c)
+
+	// 6) Compare captured vs expected.
+	if capturedA != expectedA {
+		t.Fatalf("%s: string arg mismatch:\nhave %q\nwant %q", name, capturedA, expectedA)
+	}
+	if !bytes.Equal(capturedB, expectedB) {
+		t.Fatalf("%s: []byte arg mismatch:\nhave %v\nwant %v", name, capturedB, expectedB)
+	}
+	if capturedC != expectedC {
+		t.Fatalf("%s: uint32 arg mismatch: have %d want %d", name, capturedC, expectedC)
+	}
 }
 
 func TestInputMatcher3(t *testing.T) {
