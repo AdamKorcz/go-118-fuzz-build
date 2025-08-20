@@ -1,7 +1,9 @@
 package testing
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
@@ -126,4 +128,18 @@ func (t *T) CleanupTempDirs() {
 			os.RemoveAll(tempDir)
 		}
 	}
+}
+
+func (t *T) Attr(key, value string) {}
+
+func (t *T) Chdir(dir string) {
+	panic(unsupportedApi("t.Chdir()"))
+}
+
+func (t *T) Context() context.Context {
+	return context.Background()
+}
+
+func (t *T) Output() io.Writer {
+	return os.Stdout
 }

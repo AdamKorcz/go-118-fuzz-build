@@ -1,10 +1,13 @@
 package testing
 
 import (
+	"context"
 	"fmt"
-	fuzz "github.com/AdaLogics/go-fuzz-headers"
+	"io"
 	"os"
 	"reflect"
+
+	fuzz "github.com/AdaLogics/go-fuzz-headers"
 )
 
 type F struct {
@@ -12,6 +15,15 @@ type F struct {
 	T        *T
 	FuzzFunc func(*T, any)
 }
+
+func (f *F) Attr(key, value string) {}
+func (f *F) Chdir(dir string) {
+	f.T.Chdir(dir)
+}
+
+func (f *F) Context() context.Context { return context.Background() }
+
+func (f *F) Output() io.Writer { return os.Stdout }
 
 func (f *F) CleanupTempDirs() {
 	f.T.CleanupTempDirs()
