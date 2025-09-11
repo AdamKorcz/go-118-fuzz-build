@@ -30,9 +30,9 @@ import (
 
 // Caching of loaded/type-checked worlds.
 var (
-	cacheMu           sync.RWMutex
-	moduleWorldCache  = make(map[string]*astWorld) // key: abs module root (or "dir:"+absDir when no go.mod)
-	sourceWorldCache  = make(map[string]*astWorld) // key: "src:"+md5(src)
+	cacheMu          sync.RWMutex
+	moduleWorldCache = make(map[string]*astWorld) // key: abs module root (or "dir:"+absDir when no go.mod)
+	sourceWorldCache = make(map[string]*astWorld) // key: "src:"+md5(src)
 )
 
 /***************
@@ -267,9 +267,15 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 	// Global dedupe across frames/packages: file:offset:types
 	seenResults := make(map[string]struct{})
 
-	type frame struct{ node *funcNode }
+	// Frame carries per-callee knowledge of which parameter names are *testing.F.
+	type frame struct {
+		node           *funcNode
+		testingFParams map[string]bool
+	}
+
+	rootBindings := computeTestingFParamNamesFromDecl(rootDecl)
 	stack := list.New()
-	stack.PushBack(frame{node: rootNode})
+	stack.PushBack(frame{node: rootNode, testingFParams: rootBindings})
 
 	for stack.Len() > 0 {
 		elem := stack.Back()
@@ -316,17 +322,24 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 
 				processed[cexpr.Lparen] = struct{}{}
 
-				// f.Fuzz(...) detection: method named Fuzz from package "testing"
+				// f.Fuzz(...) detection: method named Fuzz from package "testing" or bound param of *testing.F.
 				if sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
 					info := world.infoByFile[c.file]
 					if info != nil {
 						isTestingFuzz := false
 
+						// NEW: trust bindings — if sel.X is an Ident whose name is bound as *testing.F, accept.
+						if id, ok := sel.X.(*ast.Ident); ok && fr.testingFParams != nil && fr.testingFParams[id.Name] {
+							isTestingFuzz = true
+						}
+
 						// 1) Preferred: Selection -> method object
-						if selInfo := info.Selections[sel]; selInfo != nil {
-							if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
-								mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
-								isTestingFuzz = true
+						if !isTestingFuzz {
+							if selInfo := info.Selections[sel]; selInfo != nil {
+								if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
+									mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
+									isTestingFuzz = true
+								}
 							}
 						}
 
@@ -345,10 +358,10 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 								recv = tv.Type
 							} else if id, ok := sel.X.(*ast.Ident); ok {
 								if v, ok := info.Uses[id].(*types.Var); ok && v != nil {
-                                    recv = v.Type()
-                                } else if v, ok := info.Defs[id].(*types.Var); ok && v != nil {
-                                    recv = v.Type()
-                                }
+									recv = v.Type()
+								} else if v, ok := info.Defs[id].(*types.Var); ok && v != nil {
+									recv = v.Type()
+								}
 							}
 							if recv != nil && isPtrToTestingF(recv) {
 								isTestingFuzz = true
@@ -378,7 +391,10 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 									seenResults[key] = struct{}{}
 									fset := world.fsetByFile[c.file]
 									if fset == nil {
-										for _, fs := range world.fsetByFile { fset = fs; break }
+										for _, fs := range world.fsetByFile {
+											fset = fs
+											break
+										}
 									}
 									posn := fset.Position(cexpr.Lparen)
 									results = append(results, Result{
@@ -391,10 +407,11 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 					}
 				}
 
-				// Traverse into callee (cross-file / cross-package)
+				// Traverse into callee (cross-file / cross-package), carrying bindings
 				if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
 					if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-						stack.PushBack(frame{node: next})
+						bind := inferTestingFBindingsForCall(world, c.file, cexpr, next.decl)
+						stack.PushBack(frame{node: next, testingFParams: bind})
 					}
 				}
 			}
@@ -407,17 +424,24 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 			}
 			calleeObj, sel, _ := resolveCallFromCallExpr(world, fr.node.fname, ce)
 
-			// f.Fuzz(...) detection with testing-method preference + alias-aware fallback
+			// f.Fuzz(...) detection with testing-method preference + alias-aware fallback + bindings
 			if sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
 				info := world.infoByFile[fr.node.fname]
 				if info != nil {
 					isTestingFuzz := false
 
+					// NEW: bindings first
+					if id, ok := sel.X.(*ast.Ident); ok && fr.testingFParams != nil && fr.testingFParams[id.Name] {
+						isTestingFuzz = true
+					}
+
 					// 1) Preferred: Selection -> method object
-					if selInfo := info.Selections[sel]; selInfo != nil {
-						if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
-							mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
-							isTestingFuzz = true
+					if !isTestingFuzz {
+						if selInfo := info.Selections[sel]; selInfo != nil {
+							if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
+								mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
+								isTestingFuzz = true
+							}
 						}
 					}
 
@@ -468,7 +492,10 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 								seenResults[key] = struct{}{}
 								fset := world.fsetByFile[fr.node.fname]
 								if fset == nil {
-									for _, fs := range world.fsetByFile { fset = fs; break }
+									for _, fs := range world.fsetByFile {
+										fset = fs
+										break
+									}
 								}
 								posn := fset.Position(ce.Lparen)
 								results = append(results, Result{
@@ -481,10 +508,11 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 				}
 			}
 
-			// Traverse into callee
+			// Traverse into callee (carry bindings)
 			if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
 				if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-					stack.PushBack(frame{node: next})
+					bind := inferTestingFBindingsForCall(world, fr.node.fname, ce, next.decl)
+					stack.PushBack(frame{node: next, testingFParams: bind})
 				}
 			}
 		}
@@ -496,66 +524,65 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 	return results, nil
 }
 
-
 // enumerateASTCalls returns all *ast.CallExpr nodes inside the given function body.
 func enumerateASTCalls(body *ast.BlockStmt) []*ast.CallExpr {
-    var out []*ast.CallExpr
-    if body == nil {
-        return out
-    }
-    ast.Inspect(body, func(n ast.Node) bool {
-        if ce, ok := n.(*ast.CallExpr); ok {
-            out = append(out, ce)
-            return true
-        }
-        return true
-    })
-    return out
+	var out []*ast.CallExpr
+	if body == nil {
+		return out
+	}
+	ast.Inspect(body, func(n ast.Node) bool {
+		if ce, ok := n.(*ast.CallExpr); ok {
+			out = append(out, ce)
+			return true
+		}
+		return true
+	})
+	return out
 }
 
 // resolveCallFromCallExpr resolves the callee object / method info directly from a CallExpr.
 // This mirrors resolveCallAtPos but works with the call node we already have (AST fallback).
 func resolveCallFromCallExpr(w *astWorld, filename string, ce *ast.CallExpr) (callee types.Object, sel *ast.SelectorExpr, isMethod bool) {
-    info := w.infoByFile[filename]
-    if info == nil || ce == nil || ce.Fun == nil {
-        return nil, nil, false
-    }
+	info := w.infoByFile[filename]
+	if info == nil || ce == nil || ce.Fun == nil {
+		return nil, nil, false
+	}
 
-    switch fun := ce.Fun.(type) {
-    case *ast.SelectorExpr:
-        if selInfo := info.Selections[fun]; selInfo != nil {
-            return selInfo.Obj(), fun, true
-        }
-        if obj := info.Uses[fun.Sel]; obj != nil {
-            return obj, fun, false
-        }
-        return nil, fun, false
+	switch fun := ce.Fun.(type) {
+	case *ast.SelectorExpr:
+		if selInfo := info.Selections[fun]; selInfo != nil {
+			return selInfo.Obj(), fun, true
+		}
+		if obj := info.Uses[fun.Sel]; obj != nil {
+			return obj, fun, false
+		}
+		return nil, fun, false
 
-    case *ast.Ident:
-        if obj := info.Uses[fun]; obj != nil {
-            return obj, nil, false
-        }
-        if obj := info.Defs[fun]; obj != nil {
-            return obj, nil, false
-        }
-        return nil, nil, false
+	case *ast.Ident:
+		if obj := info.Uses[fun]; obj != nil {
+			return obj, nil, false
+		}
+		if obj := info.Defs[fun]; obj != nil {
+			return obj, nil, false
+		}
+		return nil, nil, false
 
-    case *ast.IndexExpr:
-        if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-            return obj, selExpr, isMeth
-        }
-        return nil, nil, false
+	case *ast.IndexExpr:
+		if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
+			return obj, selExpr, isMeth
+		}
+		return nil, nil, false
 
-    case *ast.IndexListExpr:
-        if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-            return obj, selExpr, isMeth
-        }
-        return nil, nil, false
+	case *ast.IndexListExpr:
+		if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
+			return obj, selExpr, isMeth
+		}
+		return nil, nil, false
 
-    default:
-        // function value or other form; we don't need to name the callee to continue traversal
-        return nil, nil, false
-    }
+	default:
+		// function value or other form; we don't need to name the callee to continue traversal
+		return nil, nil, false
+	}
 }
 
 func findFuncDeclsByName(f *ast.File, name string) []*ast.FuncDecl {
@@ -771,7 +798,6 @@ func resolveCalleeFromExpr(info *types.Info, e ast.Expr) (obj types.Object, sel 
 	}
 }
 
-
 /**********************
  * Support / utilities
  **********************/
@@ -831,6 +857,21 @@ func isTestingT(e ast.Expr) bool {
 	return false
 }
 
+// isAstTestingF recognizes *testing.F from AST syntax (handles any number of leading '*').
+func isAstTestingF(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.StarExpr:
+		return isAstTestingF(x.X)
+	case *ast.SelectorExpr:
+		if x.Sel != nil && x.Sel.Name == "F" {
+			if pkg, ok := x.X.(*ast.Ident); ok && pkg.Name == "testing" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // isPtrToTestingF checks whether t ultimately denotes *testing.F,
 // handling aliases-to-pointers (e.g., type Fuzzer = *testing.F).
 func isPtrToTestingF(t types.Type) bool {
@@ -873,6 +914,81 @@ func unaliasAll(t types.Type) types.Type {
 		}
 		return t
 	}
+}
+
+// computeTestingFParamNamesFromDecl returns parameter names that are directly typed as *testing.F.
+func computeTestingFParamNamesFromDecl(fd *ast.FuncDecl) map[string]bool {
+	out := make(map[string]bool)
+	if fd == nil || fd.Type == nil || fd.Type.Params == nil {
+		return out
+	}
+	for _, field := range fd.Type.Params.List {
+		if isAstTestingF(field.Type) {
+			for _, n := range field.Names {
+				out[n.Name] = true
+			}
+		}
+	}
+	return out
+}
+
+// inferTestingFBindingsForCall maps callee param names to true if the corresponding argument
+// at the callsite is statically a *testing.F. It also includes params directly typed as *testing.F.
+func inferTestingFBindingsForCall(world *astWorld, callerFile string, call *ast.CallExpr, callee *ast.FuncDecl) map[string]bool {
+	bind := computeTestingFParamNamesFromDecl(callee) // start with direct types
+	paramNames := flattenParamNames(callee)
+	info := world.infoByFile[callerFile]
+	if info == nil {
+		return bind
+	}
+	for i := 0; i < len(paramNames) && i < len(call.Args); i++ {
+		name := paramNames[i]
+		if name == "" {
+			continue
+		}
+		if ty := typeOfExpr(world, callerFile, call.Args[i]); ty != nil && isPtrToTestingF(ty) {
+			bind[name] = true
+		}
+	}
+	return bind
+}
+
+// flattenParamNames returns parameter names in order, expanding grouped params (a,b int).
+func flattenParamNames(fd *ast.FuncDecl) []string {
+	if fd == nil || fd.Type == nil || fd.Type.Params == nil {
+		return nil
+	}
+	var out []string
+	for _, field := range fd.Type.Params.List {
+		if len(field.Names) == 0 {
+			out = append(out, "")
+			continue
+		}
+		for _, n := range field.Names {
+			out = append(out, n.Name)
+		}
+	}
+	return out
+}
+
+// typeOfExpr returns the static type of e in the given file, with fallbacks for idents.
+func typeOfExpr(w *astWorld, filename string, e ast.Expr) types.Type {
+	info := w.infoByFile[filename]
+	if info == nil {
+		return nil
+	}
+	if tv, ok := info.Types[e]; ok && tv.Type != nil {
+		return tv.Type
+	}
+	if id, ok := e.(*ast.Ident); ok {
+		if v, ok := info.Uses[id].(*types.Var); ok && v != nil {
+			return v.Type()
+		}
+		if v, ok := info.Defs[id].(*types.Var); ok && v != nil {
+			return v.Type()
+		}
+	}
+	return nil
 }
 
 func exprString(e ast.Expr) string {

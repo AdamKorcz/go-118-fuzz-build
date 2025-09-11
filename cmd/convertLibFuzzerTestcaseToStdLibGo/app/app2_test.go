@@ -349,25 +349,24 @@ go 1.22
 		t.Fatalf("write go.mod: %v", err)
 	}
 
-	// Subpkg: istio.io/istio/pkg/fuzz/test — define test.Fuzzer exactly as used,
-	// but as a type alias to *testing.F so the receiver is statically *testing.F.
+	// Subpkg: istio.io/istio/pkg/fuzz/test — define test.Fuzzer as an interface.
 	testDir := filepath.Join(tmp, "pkg", "fuzz", "test")
 	if err := os.MkdirAll(testDir, 0o755); err != nil {
 		t.Fatalf("mkdir fuzz/test: %v", err)
 	}
 	testSrc := `package test
 
-import "testing"
-
-// Fuzzer is a type alias to *testing.F so the helper's f.Fuzz(...) receiver
-// is statically *testing.F while the signature remains identical to your snippet.
-type Fuzzer = *testing.F
+// Fuzzer abstracts *testing.F
+type Fuzzer interface {
+	Fuzz(ff any)
+	Add(args ...any)
+}
 `
 	if err := os.WriteFile(filepath.Join(testDir, "fuzzer.go"), []byte(testSrc), 0o644); err != nil {
 		t.Fatalf("write fuzz/test/fuzzer.go: %v", err)
 	}
 
-	// Package: istio.io/istio/pkg/fuzz — helper with the EXACT Fuzz signature/code you provided.
+	// Package: istio.io/istio/pkg/fuzz — helper with the EXACT Fuzz signature/body you want.
 	fuzzDir := filepath.Join(tmp, "pkg", "fuzz")
 	if err := os.MkdirAll(fuzzDir, 0o755); err != nil {
 		t.Fatalf("mkdir pkg/fuzz: %v", err)
