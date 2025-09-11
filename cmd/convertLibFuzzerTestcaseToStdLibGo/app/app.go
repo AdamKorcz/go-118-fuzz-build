@@ -2,42 +2,24 @@ package app
 
 import (
 	"bytes"
-	"container/list"
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go/ast"
-	"go/importer"
 	"go/parser"
 	"go/printer"
 	"go/token"
-	"go/types"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
-	"sync"
 	"testing"
 
 	inputpkg "github.com/AdamKorcz/go-118-fuzz-build/input"
-	sitter "github.com/smacker/go-tree-sitter"
-	tsgo "github.com/smacker/go-tree-sitter/golang"
-	"golang.org/x/tools/go/packages"
 )
-
-// Caching of loaded/type-checked worlds.
-var (
-	cacheMu           sync.RWMutex
-	moduleWorldCache  = make(map[string]*astWorld) // key: abs module root (or "dir:"+absDir when no go.mod)
-	sourceWorldCache  = make(map[string]*astWorld) // key: "src:"+md5(src)
-)
-
-/***************
- * Analysis API
- ***************/
 
 // Result holds one matched f.Fuzz(...) call found inside the requested function.
 type Result struct {
@@ -45,369 +27,78 @@ type Result struct {
 	Types []string // extracted types in call order, e.g. []{"[]byte","int","int","bool"}
 }
 
-// AnalyzeFile analyzes the function/method named funcName that is defined in the
-// file at 'path'. It loads and type-checks the entire module (./...) so traversal
-// can follow calls across packages within the module.
-//
-// If no module root (go.mod) is found, it falls back to loading just the package
-// containing 'path' and its deps (without syntax for deps), which limits traversal.
-func AnalyzeFile(path string, funcName string) ([]Result, error) {
-	abs, err := filepath.Abs(path)
+// AnalyzeFile parses a single .go file and extracts fuzz arg types from
+// f.Fuzz(...) calls inside function funcName, ensuring the receiver is a *testing.F.
+func AnalyzeFile(path, funcName string) ([]Result, error) {
+	src, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("abs: %w", err)
+		return nil, fmt.Errorf("read file: %w", err)
 	}
-	dir := filepath.Dir(abs)
-	modRoot, hasMod := findModuleRoot(dir)
-
-	// Cache key
-	cacheKey := ""
-	if hasMod {
-		cacheKey = modRoot
-	} else {
-		cacheKey = "dir:" + dir
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, src, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse file: %w", err)
 	}
-
-	// Try cache
-	cacheMu.RLock()
-	world := moduleWorldCache[cacheKey]
-	cacheMu.RUnlock()
-
-	// Build world if needed
-	if world == nil {
-		mode := packages.NeedName |
-			packages.NeedFiles |
-			packages.NeedCompiledGoFiles |
-			packages.NeedSyntax |
-			packages.NeedTypes |
-			packages.NeedTypesInfo |
-			packages.NeedModule |
-			packages.NeedImports |
-			packages.NeedDeps
-
-		cfg := &packages.Config{Mode: mode}
-		var patterns []string
-		if hasMod {
-			cfg.Dir = modRoot
-			patterns = []string{"./..."}
-		} else {
-			cfg.Dir = dir
-			patterns = []string{"file=" + abs}
-		}
-
-		pkgs, err := packages.Load(cfg, patterns...)
-		if err != nil {
-			return nil, fmt.Errorf("packages.Load: %w", err)
-		}
-		if packages.PrintErrors(pkgs) > 0 {
-			// proceed best-effort; target file may still be fine
-		}
-
-		world, err = buildWorldFromPackages(pkgs)
-		if err != nil {
-			return nil, err
-		}
-
-		cacheMu.Lock()
-		moduleWorldCache[cacheKey] = world
-		cacheMu.Unlock()
-	}
-
-	return analyzeAST(world, abs, funcName)
+	return analyzeAST(fset, file, funcName)
 }
 
 // AnalyzeSource is handy for unit tests (or callers with in-memory source).
 func AnalyzeSource(src []byte, funcName string) ([]Result, error) {
-	const pseudo = "<src>"
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "inmem.go", src, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parse source: %w", err)
+	}
+	return analyzeAST(fset, file, funcName)
+}
 
-	// Cache by content hash
-	sum := md5.Sum(src)
-	key := "src:" + hex.EncodeToString(sum[:])
-
-	cacheMu.RLock()
-	world := sourceWorldCache[key]
-	cacheMu.RUnlock()
-
-	if world == nil {
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, pseudo, src, parser.ParseComments)
-		if err != nil {
-			return nil, fmt.Errorf("parse: %w", err)
-		}
-		info := &types.Info{
-			Types:      make(map[ast.Expr]types.TypeAndValue),
-			Defs:       make(map[*ast.Ident]types.Object),
-			Uses:       make(map[*ast.Ident]types.Object),
-			Selections: make(map[*ast.SelectorExpr]*types.Selection),
-		}
-		conf := &types.Config{
-			Importer: importer.Default(),
-		}
-		pkg, err := conf.Check(file.Name.Name, fset, []*ast.File{file}, info)
-		if err != nil {
-			return nil, fmt.Errorf("type check: %w", err)
-		}
-
-		world = &astWorld{
-			filesByPath: map[string]*ast.File{pseudo: file},
-			srcByFile:   map[string][]byte{pseudo: src},
-			tfByFile:    map[string]*token.File{pseudo: fset.File(file.Pos())},
-			fsetByFile:  map[string]*token.FileSet{pseudo: fset},
-			infoByFile:  map[string]*types.Info{pseudo: info},
-			pkgByFile:   map[string]*types.Package{pseudo: pkg},
-		}
-
-		cacheMu.Lock()
-		sourceWorldCache[key] = world
-		cacheMu.Unlock()
+func analyzeAST(fset *token.FileSet, file *ast.File, funcName string) ([]Result, error) {
+	fn := findFuncDecl(file, funcName)
+	if fn == nil || fn.Body == nil {
+		return nil, fmt.Errorf("no function %q with body found", funcName)
 	}
 
-	return analyzeAST(world, pseudo, funcName)
-}
-
-/*************************
- * Internal analysis core
- *************************/
-
-type astWorld struct {
-	filesByPath map[string]*ast.File      // path or pseudo -> *ast.File
-	srcByFile   map[string][]byte         // path -> source bytes
-	tfByFile    map[string]*token.File    // path -> token.File for offset/pos mapping
-	fsetByFile  map[string]*token.FileSet // path -> file's FileSet (for Position)
-	infoByFile  map[string]*types.Info    // path -> package's TypesInfo for that file
-	pkgByFile   map[string]*types.Package // path -> *types.Package
-}
-
-type funcNode struct {
-	obj   *types.Func
-	decl  *ast.FuncDecl
-	fname string // path or pseudo
-}
-
-// buildWorldFromPackages builds an astWorld from packages.Load results.
-func buildWorldFromPackages(pkgs []*packages.Package) (*astWorld, error) {
-	w := &astWorld{
-		filesByPath: make(map[string]*ast.File),
-		srcByFile:   make(map[string][]byte),
-		tfByFile:    make(map[string]*token.File),
-		fsetByFile:  make(map[string]*token.FileSet),
-		infoByFile:  make(map[string]*types.Info),
-		pkgByFile:   make(map[string]*types.Package),
+	// Collect names of parameters whose type is *testing.F for this function.
+	fuzzParamNames := namesOfTestingFParams(fn)
+	if len(fuzzParamNames) == 0 {
+		return nil, fmt.Errorf("function %q has no parameter of type *testing.F", funcName)
 	}
 
-	for _, p := range pkgs {
-		if p == nil || p.Fset == nil || p.TypesInfo == nil {
-			continue
+	var results []Result
+	ast.Inspect(fn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
-		for _, file := range p.Syntax {
-			if file == nil {
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel == nil || sel.Sel.Name != "Fuzz" {
+			return true
+		}
+
+		// Ensure selector receiver is an identifier matching one of the *testing.F params.
+		id, ok := sel.X.(*ast.Ident)
+		if !ok || !fuzzParamNames[id.Name] {
+			return true
+		}
+
+		// Find the func literal argument: f.Fuzz(func(t *testing.T, ...){...})
+		for _, arg := range call.Args {
+			fnLit, ok := arg.(*ast.FuncLit)
+			if !ok || fnLit.Type == nil || fnLit.Type.Params == nil {
 				continue
 			}
-			filename := p.Fset.Position(file.Pos()).Filename
-			abs, _ := filepath.Abs(filename)
-
-			w.filesByPath[abs] = file
-			w.tfByFile[abs] = p.Fset.File(file.Pos())
-			w.fsetByFile[abs] = p.Fset
-			w.infoByFile[abs] = p.TypesInfo
-			w.pkgByFile[abs] = p.Types
-
-			// Source bytes
-			if _, ok := w.srcByFile[abs]; !ok {
-				data, err := os.ReadFile(abs)
-				if err == nil {
-					w.srcByFile[abs] = data
-				} else {
-					// best effort; not fatal
-					w.srcByFile[abs] = nil
-				}
+			types := extractParamTypes(fnLit.Type.Params.List)
+			if len(types) == 0 {
+				continue
 			}
+			pos := fset.Position(call.Lparen)
+			results = append(results, Result{
+				Line:  pos.Line,
+				Types: types,
+			})
 		}
-	}
-	if len(w.filesByPath) == 0 {
-		return nil, fmt.Errorf("no files with syntax loaded")
-	}
-	return w, nil
-}
-
-func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, error) {
-	file := world.filesByPath[filename]
-	if file == nil {
-		return nil, fmt.Errorf("file %s not found in loaded packages", filename)
-	}
-
-	// Resolve the root function/method by name INSIDE the given file.
-	rootDecls := findFuncDeclsByName(file, funcName)
-	if len(rootDecls) == 0 {
-		return nil, fmt.Errorf("function or method %q not found in %s", funcName, filename)
-	}
-	if len(rootDecls) > 1 {
-		return nil, fmt.Errorf("ambiguous: multiple decls named %q in %s", funcName, filename)
-	}
-	rootDecl := rootDecls[0]
-	if rootDecl.Body == nil {
-		return nil, fmt.Errorf("function %q has no body", funcName)
-	}
-	info := world.infoByFile[filename]
-	if info == nil {
-		return nil, fmt.Errorf("types.Info not found for %s", filename)
-	}
-	rootObj, _ := info.Defs[rootDecl.Name].(*types.Func)
-	if rootObj == nil {
-		return nil, fmt.Errorf("failed to resolve *types.Func for %q", funcName)
-	}
-	rootNode := &funcNode{obj: rootObj, decl: rootDecl, fname: filename}
-
-	// Tree-sitter setup
-	lang := tsgo.GetLanguage()
-	parser := sitter.NewParser()
-	parser.SetLanguage(lang)
-
-	visited := map[*types.Func]bool{}
-	var results []Result
-
-	type frame struct{ node *funcNode }
-	stack := list.New()
-	stack.PushBack(frame{node: rootNode})
-
-	for stack.Len() > 0 {
-		elem := stack.Back()
-		stack.Remove(elem)
-		fr := elem.Value.(frame)
-
-		if visited[fr.node.obj] {
-			continue
-		}
-		visited[fr.node.obj] = true
-
-		src := world.srcByFile[fr.node.fname]
-		tf := world.tfByFile[fr.node.fname]
-		if tf == nil {
-			return nil, fmt.Errorf("missing token.File for %s", fr.node.fname)
-		}
-		if src == nil {
-			// Load lazily if not previously read
-			data, err := os.ReadFile(fr.node.fname)
-			if err == nil {
-				src = data
-			}
-		}
-		if src == nil {
-			// Cannot analyze without source bytes for Tree-sitter
-			continue
-		}
-
-		bodyStart := tf.Offset(fr.node.decl.Body.Lbrace) + 1
-        bodyEnd := tf.Offset(fr.node.decl.Body.Rbrace)
-
-        // 1) Tree-sitter discovery
-        tsCalls := treeSitterCallsInRange(parser, src, fr.node.fname, bodyStart, bodyEnd)
-
-        // We'll dedupe by callsite position (Lparen).
-        processed := make(map[token.Pos]struct{})
-
-		 // Process TS calls first
-        for _, c := range tsCalls {
-            if pos, ok := offsetToPos(world, c.file, c.start); ok {
-                cexpr, _, calleeObj, sel, isMethod, ok2 := resolveCallAtPos(world, c.file, pos)
-                if !ok2 || cexpr == nil {
-                    continue
-                }
-
-                // mark dedup key
-                processed[cexpr.Lparen] = struct{}{}
-
-                // Fuzz detection
-                if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
-                    info := world.infoByFile[c.file]
-                    if info != nil {
-                        if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
-                            var typesSlices [][]string
-                            for _, arg := range cexpr.Args {
-                                fnLit, ok := arg.(*ast.FuncLit)
-                                if !ok || fnLit.Type == nil || fnLit.Type.Params == nil {
-                                    continue
-                                }
-                                types := extractParamTypes(fnLit.Type.Params.List)
-                                if len(types) > 0 {
-                                    typesSlices = append(typesSlices, types)
-                                }
-                            }
-                            if len(typesSlices) > 0 {
-                                fset := world.fsetByFile[c.file]
-                                if fset == nil {
-                                    for _, fs := range world.fsetByFile {
-                                        fset = fs
-                                        break
-                                    }
-                                }
-                                posn := fset.Position(cexpr.Lparen)
-                                results = append(results, Result{
-                                    Line:  posn.Line,
-                                    Types: flatten(typesSlices),
-                                })
-                            }
-                        }
-                    }
-                }
-
-                // Traverse into callee (cross-file / cross-package)
-                if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
-                    if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-                        stack.PushBack(frame{node: next})
-                    }
-                }
-            }
-        }
-
-        // 2) AST fallback discovery (handles generics or grammar gaps)
-        for _, ce := range enumerateASTCalls(fr.node.decl.Body) {
-            if _, seen := processed[ce.Lparen]; seen {
-                continue
-            }
-            calleeObj, sel, isMethod := resolveCallFromCallExpr(world, fr.node.fname, ce)
-
-            // Fuzz detection
-            if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
-                info := world.infoByFile[fr.node.fname]
-                if info != nil {
-                    if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
-                        var typesSlices [][]string
-                        for _, arg := range ce.Args {
-                            fnLit, ok := arg.(*ast.FuncLit)
-                            if !ok || fnLit.Type == nil || fnLit.Type.Params == nil {
-                                continue
-                            }
-                            types := extractParamTypes(fnLit.Type.Params.List)
-                            if len(types) > 0 {
-                                typesSlices = append(typesSlices, types)
-                            }
-                        }
-                        if len(typesSlices) > 0 {
-                            fset := world.fsetByFile[fr.node.fname]
-                            if fset == nil {
-                                for _, fs := range world.fsetByFile {
-                                    fset = fs
-                                    break
-                                }
-                            }
-                            posn := fset.Position(ce.Lparen)
-                            results = append(results, Result{
-                                Line:  posn.Line,
-                                Types: flatten(typesSlices),
-                            })
-                        }
-                    }
-                }
-            }
-
-            // Traverse into callee
-            if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
-                if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-                    stack.PushBack(frame{node: next})
-                }
-            }
-        }
-	}
+		return true
+	})
 
 	if len(results) == 0 {
 		return nil, fmt.Errorf("no matching f.Fuzz(func(...){...}) found inside %q", funcName)
@@ -415,304 +106,29 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 	return results, nil
 }
 
-// enumerateASTCalls returns all *ast.CallExpr nodes inside the given function body.
-func enumerateASTCalls(body *ast.BlockStmt) []*ast.CallExpr {
-    var out []*ast.CallExpr
-    if body == nil {
-        return out
-    }
-    ast.Inspect(body, func(n ast.Node) bool {
-        if ce, ok := n.(*ast.CallExpr); ok {
-            out = append(out, ce)
-            return true
-        }
-        return true
-    })
-    return out
-}
-
-// resolveCallFromCallExpr resolves the callee object / method info directly from a CallExpr.
-// This mirrors resolveCallAtPos but works with the call node we already have (AST fallback).
-func resolveCallFromCallExpr(w *astWorld, filename string, ce *ast.CallExpr) (callee types.Object, sel *ast.SelectorExpr, isMethod bool) {
-    info := w.infoByFile[filename]
-    if info == nil || ce == nil || ce.Fun == nil {
-        return nil, nil, false
-    }
-
-    switch fun := ce.Fun.(type) {
-    case *ast.SelectorExpr:
-        if selInfo := info.Selections[fun]; selInfo != nil {
-            return selInfo.Obj(), fun, true
-        }
-        if obj := info.Uses[fun.Sel]; obj != nil {
-            return obj, fun, false
-        }
-        return nil, fun, false
-
-    case *ast.Ident:
-        if obj := info.Uses[fun]; obj != nil {
-            return obj, nil, false
-        }
-        if obj := info.Defs[fun]; obj != nil {
-            return obj, nil, false
-        }
-        return nil, nil, false
-
-    case *ast.IndexExpr:
-        if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-            return obj, selExpr, isMeth
-        }
-        return nil, nil, false
-
-    case *ast.IndexListExpr:
-        if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-            return obj, selExpr, isMeth
-        }
-        return nil, nil, false
-
-    default:
-        // function value or other form; we don't need to name the callee to continue traversal
-        return nil, nil, false
-    }
-}
-
-func findFuncDeclsByName(f *ast.File, name string) []*ast.FuncDecl {
-	if f == nil {
-		return nil
-	}
-	var out []*ast.FuncDecl
-	ast.Inspect(f, func(n ast.Node) bool {
-		fd, ok := n.(*ast.FuncDecl)
-		if !ok {
-			return true
-		}
-		if fd.Name != nil && fd.Name.Name == name {
-			out = append(out, fd)
-		}
-		return true
-	})
-	return out
-}
-
-func findFuncNodeForObject(w *astWorld, fn *types.Func) *funcNode {
-	for filePath, f := range w.filesByPath {
-		info := w.infoByFile[filePath]
-		if info == nil {
-			continue
-		}
-		var found *ast.FuncDecl
-		ast.Inspect(f, func(n ast.Node) bool {
-			fd, ok := n.(*ast.FuncDecl)
-			if !ok {
-				return true
-			}
-			obj, _ := info.Defs[fd.Name].(*types.Func)
-			if obj == nil {
-				return true
-			}
-			if sameFuncObject(obj, fn) {
-				found = fd
-				return false
-			}
-			return true
-		})
-		if found != nil {
-			return &funcNode{obj: fn, decl: found, fname: filePath}
+func findFuncDecl(f *ast.File, name string) *ast.FuncDecl {
+	for _, d := range f.Decls {
+		if fn, ok := d.(*ast.FuncDecl); ok && fn.Name != nil && fn.Name.Name == name {
+			return fn
 		}
 	}
 	return nil
 }
 
-// sameFuncObject returns true if a and b refer to the same declared function,
-// even when one is an instantiation of a generic function.
-// We first try pointer equality, then fall back to (pkg path, name, receiver) match.
-func sameFuncObject(a, b *types.Func) bool {
-	if a == b {
-		return true
+func namesOfTestingFParams(fn *ast.FuncDecl) map[string]bool {
+	out := make(map[string]bool)
+	if fn.Type == nil || fn.Type.Params == nil {
+		return out
 	}
-	if a == nil || b == nil {
-		return false
-	}
-
-	// Try to compare origins if available (for newer Go versions where funcs may have Origin).
-	type funcWithOrigin interface{ Origin() *types.Func }
-	if ao, ok := any(a).(funcWithOrigin); ok {
-		if bo, ok := any(b).(funcWithOrigin); ok {
-			if ao.Origin() != nil && ao.Origin() == bo.Origin() {
-				return true
+	for _, field := range fn.Type.Params.List {
+		if isTestingF(field.Type) {
+			for _, name := range field.Names {
+				out[name.Name] = true
 			}
 		}
 	}
-
-	// Fallback: same package path and same name; also check receiver presence/type.
-	ap, bp := pkgPathOf(a), pkgPathOf(b)
-	if ap != "" && ap == bp && a.Name() == b.Name() {
-		asig := a.Type().(*types.Signature)
-		bsig := b.Type().(*types.Signature)
-		ar, br := asig.Recv(), bsig.Recv()
-		if (ar == nil) != (br == nil) {
-			return false
-		}
-		if ar == nil {
-			// Both are top-level functions.
-			return true
-		}
-		// Compare receiver types (best-effort).
-		return types.Identical(ar.Type().Underlying(), br.Type().Underlying())
-	}
-	return false
+	return out
 }
-
-func pkgPathOf(f *types.Func) string {
-	if f == nil || f.Pkg() == nil {
-		return ""
-	}
-	return f.Pkg().Path()
-}
-
-func offsetToPos(w *astWorld, filename string, offset int) (token.Pos, bool) {
-	tf := w.tfByFile[filename]
-	if tf == nil {
-		return token.NoPos, false
-	}
-	if offset < 0 || offset > tf.Size() {
-		return token.NoPos, false
-	}
-	return tf.Pos(offset), true
-}
-
-// resolveCallAtPos finds the smallest *ast.CallExpr enclosing pos in the given file,
-// and returns the call, its position, the resolved callee object (if any), and whether
-// it's a method call (based on Selections).
-func resolveCallAtPos(
-	w *astWorld,
-	filename string,
-	pos token.Pos,
-) (call *ast.CallExpr, callPos token.Pos, callee types.Object, sel *ast.SelectorExpr, isMethod bool, ok bool) {
-
-	f := w.filesByPath[filename]
-	info := w.infoByFile[filename]
-	if f == nil || info == nil {
-		return nil, 0, nil, nil, false, false
-	}
-
-	var best *ast.CallExpr
-	bestDepth := 1 << 30
-	curDepth := 0
-
-	ast.Inspect(f, func(n ast.Node) bool {
-		if n == nil {
-			curDepth--
-			return true
-		}
-		curDepth++
-		if ce, okCE := n.(*ast.CallExpr); okCE {
-			if ce.Pos() <= pos && pos <= ce.End() && curDepth < bestDepth {
-				best, bestDepth = ce, curDepth
-			}
-		}
-		return true
-	})
-	if best == nil {
-		return nil, 0, nil, nil, false, false
-	}
-
-	switch fun := best.Fun.(type) {
-	case *ast.SelectorExpr:
-		if selInfo := info.Selections[fun]; selInfo != nil {
-			return best, best.Lparen, selInfo.Obj(), fun, true, true
-		}
-		if obj := info.Uses[fun.Sel]; obj != nil {
-			return best, best.Lparen, obj, fun, false, true
-		}
-		return best, best.Lparen, nil, fun, false, false
-
-	case *ast.Ident:
-		if obj := info.Uses[fun]; obj != nil {
-			return best, best.Lparen, obj, nil, false, true
-		}
-		if obj := info.Defs[fun]; obj != nil {
-			return best, best.Lparen, obj, nil, false, true
-		}
-		return best, best.Lparen, nil, nil, false, false
-
-	case *ast.IndexExpr:
-		// Generic call with a single type arg: foo[T](...)
-		if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-			return best, best.Lparen, obj, selExpr, isMeth, true
-		}
-		if t := info.Types[fun].Type; t != nil {
-			return best, best.Lparen, nil, nil, false, true
-		}
-		return best, best.Lparen, nil, nil, false, false
-
-	case *ast.IndexListExpr:
-		// Generic call with multiple type args: foo[T1, T2](...)
-		if obj, selExpr, isMeth := resolveCalleeFromExpr(info, fun.X); obj != nil {
-			return best, best.Lparen, obj, selExpr, isMeth, true
-		}
-		if t := info.Types[fun].Type; t != nil {
-			return best, best.Lparen, nil, nil, false, true
-		}
-		return best, best.Lparen, nil, nil, false, false
-
-	default:
-		if t := info.Types[fun].Type; t != nil {
-			return best, best.Lparen, nil, nil, false, true
-		}
-	}
-	return nil, 0, nil, nil, false, false
-}
-
-// resolveCalleeFromExpr resolves a callee object from an identifier/selector expression,
-// used when the call is a generic instantiation (IndexExpr/IndexListExpr).
-func resolveCalleeFromExpr(info *types.Info, e ast.Expr) (obj types.Object, sel *ast.SelectorExpr, isMethod bool) {
-	switch x := e.(type) {
-	case *ast.SelectorExpr:
-		if selInfo := info.Selections[x]; selInfo != nil {
-			return selInfo.Obj(), x, true
-		}
-		if o := info.Uses[x.Sel]; o != nil {
-			return o, x, false
-		}
-		return nil, x, false
-	case *ast.Ident:
-		if o := info.Uses[x]; o != nil {
-			return o, nil, false
-		}
-		if o := info.Defs[x]; o != nil {
-			return o, nil, false
-		}
-		return nil, nil, false
-	default:
-		return nil, nil, false
-	}
-}
-
-
-/**********************
- * Support / utilities
- **********************/
-
-// findModuleRoot walks up from start until it finds a go.mod, returning (dir, true).
-// If not found, returns (start, false).
-func findModuleRoot(start string) (string, bool) {
-	dir := start
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, true
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return start, false
-		}
-		dir = parent
-	}
-}
-
-/******************************
- * Fuzz argument type helpers
- ******************************/
 
 // extractParamTypes returns fuzz func parameter types after skipping the
 // initial t *testing.T (if present) and expanding grouped params (a, b int -> int, int).
@@ -749,39 +165,26 @@ func isTestingT(e ast.Expr) bool {
 	return false
 }
 
-// isPtrToTestingF checks for exactly *testing.F using go/types Type.
-func isPtrToTestingF(t types.Type) bool {
-	ptr, ok := t.(*types.Pointer)
-	if !ok {
-		return false
+func isTestingF(e ast.Expr) bool {
+	switch x := e.(type) {
+	case *ast.StarExpr:
+		return isTestingF(x.X)
+	case *ast.SelectorExpr:
+		if x.Sel != nil && x.Sel.Name == "F" {
+			if pkg, ok := x.X.(*ast.Ident); ok && pkg.Name == "testing" {
+				return true
+			}
+		}
 	}
-	named, ok := ptr.Elem().(*types.Named)
-	if !ok || named.Obj() == nil || named.Obj().Pkg() == nil {
-		return false
-	}
-	return named.Obj().Name() == "F" && named.Obj().Pkg().Path() == "testing"
+	return false
 }
 
 func exprString(e ast.Expr) string {
-	// Use syntax printer (not go/types) to preserve the textual form used in tests.
 	var buf bytes.Buffer
 	_ = printer.Fprint(&buf, token.NewFileSet(), e)
 	return buf.String()
 }
 
-func flatten(x [][]string) []string {
-	var out []string
-	for _, inner := range x {
-		out = append(out, inner...)
-	}
-	return out
-}
-
-/*******************************
- * JSON & seed helper functions
- *******************************/
-
-// equalStrings is used by MergeFuncTypesIntoJSON.
 func equalStrings(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -793,6 +196,8 @@ func equalStrings(a, b []string) bool {
 	}
 	return true
 }
+
+/*** JSON helpers and merge policy ***/
 
 func readJSONMap(path string) (map[string][]string, error) {
 	m := make(map[string][]string)
@@ -843,7 +248,8 @@ func writeJSONMap(path string, m map[string][]string) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Rename(tmp.Name(), path); err != nil {
+	err = os.Rename(tmp.Name(), path)
+	if err != nil {
 		return err
 	}
 	return os.Chmod(path, 0o777)
@@ -860,13 +266,16 @@ func MergeFuncTypesIntoJSON(jsonOut, funcName string, types []string) error {
 	if err != nil {
 		return err
 	}
+
 	if existing, ok := m[funcName]; ok {
 		if equalStrings(existing, types) {
-			return nil // idempotent
+			// No change
+			return nil
 		}
 		// Different signature present: do not overwrite.
 		return nil
 	}
+
 	m[funcName] = types
 	return writeJSONMap(jsonOut, m)
 }
@@ -884,6 +293,8 @@ func LoadTypesFromJSONFile(path, funcName string) ([]string, error) {
 	return types, nil
 }
 
+/*** Seed conversion using go-118-fuzz-build input.Source ***/
+
 // ConvertSeedsToGoTests:
 //  1) loads types for funcName from jsonPath,
 //  2) builds an empty fuzz func: func(t *testing.T, ...types) {},
@@ -892,11 +303,11 @@ func LoadTypesFromJSONFile(path, funcName string) ([]string, error) {
 //
 // Returns number of files written.
 func ConvertSeedsToGoTests(seedsDir, outDir, jsonPath, funcName string) (int, error) {
-	typesList, err := LoadTypesFromJSONFile(jsonPath, funcName)
+	types, err := LoadTypesFromJSONFile(jsonPath, funcName)
 	if err != nil {
 		return 0, err
 	}
-	emptyFn, err := MakeEmptyFuzzFunc(typesList)
+	emptyFn, err := MakeEmptyFuzzFunc(types)
 	if err != nil {
 		return 0, fmt.Errorf("build empty fuzz func: %w", err)
 	}
@@ -968,7 +379,10 @@ func MakeEmptyFuzzFunc(paramTypes []string) (reflect.Value, error) {
 		in = append(in, rt)
 	}
 	fnType := reflect.FuncOf(in, nil, false)
-	fn := reflect.MakeFunc(fnType, func(args []reflect.Value) []reflect.Value { return nil })
+	fn := reflect.MakeFunc(fnType, func(args []reflect.Value) []reflect.Value {
+		// no-op body
+		return nil
+	})
 	return fn, nil
 }
 
@@ -1008,7 +422,7 @@ func typeFromString(s string) (reflect.Type, error) {
 		return reflect.TypeOf(int64(0)), nil
 
 	case "uint":
-		return reflect.TypeOf(uint(0)), nil
+	 return reflect.TypeOf(uint(0)), nil
 	case "uint8":
 		return reflect.TypeOf(uint8(0)), nil
 	case "uint16":
@@ -1026,7 +440,7 @@ func typeFromString(s string) (reflect.Type, error) {
 		return reflect.TypeOf(float64(0)), nil
 	}
 
-	// Common fully spelled slice forms for clarity.
+	// Common fully spelled slice forms that may appear (kept for clarity).
 	switch s {
 	case "[]byte":
 		return reflect.TypeOf([]byte(nil)), nil
@@ -1041,7 +455,7 @@ func typeFromString(s string) (reflect.Type, error) {
 
 // ChooseTypes selects which types list to persist when multiple f.Fuzz calls exist.
 // If firstOnly is true, it returns the first. Otherwise it prefers a unanimous list;
-// if they differ, it still returns the first.
+// if they differ, it still returns the first and leaves it to the caller to warn/log.
 func ChooseTypes(results []Result, firstOnly bool) []string {
 	if len(results) == 0 {
 		return nil
@@ -1056,50 +470,4 @@ func ChooseTypes(results []Result, firstOnly bool) []string {
 		}
 	}
 	return base
-}
-
-/*****************
- * TS utilities
- *****************/
-
-type tsCall struct {
-	file        string
-	start, end  int
-	calleeBytes []byte
-}
-
-func treeSitterCallsInRange(parser *sitter.Parser, src []byte, filename string, start, end int) []tsCall {
-	tree := parser.Parse(nil, src)
-	defer tree.Close()
-	root := tree.RootNode()
-
-	var out []tsCall
-	var walk func(n *sitter.Node)
-	walk = func(n *sitter.Node) {
-		if !n.IsNamed() {
-			return
-		}
-		if n.Type() == "call_expression" {
-			fnNode := n.ChildByFieldName("function")
-			if fnNode != nil {
-				s := int(fnNode.StartByte())
-				e := int(fnNode.EndByte())
-				if s >= start && e <= end {
-					out = append(out, tsCall{
-						file:        filename,
-						start:       s,
-						end:         e,
-						calleeBytes: src[s:e],
-					})
-				}
-			}
-		}
-		for i := 0; i < int(n.ChildCount()); i++ {
-			if child := n.Child(i); child != nil {
-				walk(child)
-			}
-		}
-	}
-	walk(root)
-	return out
 }
