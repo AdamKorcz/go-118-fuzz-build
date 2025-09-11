@@ -84,7 +84,7 @@ func AnalyzeFile(path string, funcName string) ([]Result, error) {
 			packages.NeedImports |
 			packages.NeedDeps
 
-		cfg := &packages.Config{Mode: mode}
+		cfg := &packages.Config{Mode: mode, Tests: true}
 		var patterns []string
 		if hasMod {
 			cfg.Dir = modRoot
@@ -264,6 +264,8 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 
 	visited := map[*types.Func]bool{}
 	var results []Result
+	// Global dedupe across frames/packages: file:offset:types
+	seenResults := make(map[string]struct{})
 
 	type frame struct{ node *funcNode }
 	stack := list.New()
@@ -285,128 +287,144 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 			return nil, fmt.Errorf("missing token.File for %s", fr.node.fname)
 		}
 		if src == nil {
-			// Load lazily if not previously read
+			// Lazy load if not present (best-effort)
 			data, err := os.ReadFile(fr.node.fname)
 			if err == nil {
 				src = data
 			}
 		}
 		if src == nil {
-			// Cannot analyze without source bytes for Tree-sitter
+			// Cannot analyze without source bytes for Tree-sitter; skip this frame.
 			continue
 		}
 
 		bodyStart := tf.Offset(fr.node.decl.Body.Lbrace) + 1
-        bodyEnd := tf.Offset(fr.node.decl.Body.Rbrace)
+		bodyEnd := tf.Offset(fr.node.decl.Body.Rbrace)
 
-        // 1) Tree-sitter discovery
-        tsCalls := treeSitterCallsInRange(parser, src, fr.node.fname, bodyStart, bodyEnd)
+		// 1) Tree-sitter discovery
+		tsCalls := treeSitterCallsInRange(parser, src, fr.node.fname, bodyStart, bodyEnd)
 
-        // We'll dedupe by callsite position (Lparen).
-        processed := make(map[token.Pos]struct{})
+		// Per-body dedupe to avoid reprocessing the same call twice when both TS and AST see it.
+		processed := make(map[token.Pos]struct{})
 
-		 // Process TS calls first
-        for _, c := range tsCalls {
-            if pos, ok := offsetToPos(world, c.file, c.start); ok {
-                cexpr, _, calleeObj, sel, isMethod, ok2 := resolveCallAtPos(world, c.file, pos)
-                if !ok2 || cexpr == nil {
-                    continue
-                }
+		// Process TS calls first
+		for _, c := range tsCalls {
+			if pos, ok := offsetToPos(world, c.file, c.start); ok {
+				cexpr, _, calleeObj, sel, isMethod, ok2 := resolveCallAtPos(world, c.file, pos)
+				if !ok2 || cexpr == nil {
+					continue
+				}
 
-                // mark dedup key
-                processed[cexpr.Lparen] = struct{}{}
+				processed[cexpr.Lparen] = struct{}{}
 
-                // Fuzz detection
-                if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
-                    info := world.infoByFile[c.file]
-                    if info != nil {
-                        if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
-                            var typesSlices [][]string
-                            for _, arg := range cexpr.Args {
-                                fnLit, ok := arg.(*ast.FuncLit)
-                                if !ok || fnLit.Type == nil || fnLit.Type.Params == nil {
-                                    continue
-                                }
-                                types := extractParamTypes(fnLit.Type.Params.List)
-                                if len(types) > 0 {
-                                    typesSlices = append(typesSlices, types)
-                                }
-                            }
-                            if len(typesSlices) > 0 {
-                                fset := world.fsetByFile[c.file]
-                                if fset == nil {
+				// f.Fuzz(...) detection: method named Fuzz on receiver *testing.F
+				if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
+					info := world.infoByFile[c.file]
+					if info != nil {
+						if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
+							var typesSlices [][]string
+							for _, arg := range cexpr.Args {
+								if fnLit, ok := arg.(*ast.FuncLit); ok && fnLit.Type != nil && fnLit.Type.Params != nil {
+									types := extractParamTypes(fnLit.Type.Params.List)
+									if len(types) > 0 {
+										typesSlices = append(typesSlices, types)
+									}
+								}
+							}
+							if len(typesSlices) > 0 {
+								// Global dedupe key: file:byteOffsetOfLparen:types
+								tfLocal := world.tfByFile[c.file]
+								var off int
+								if tfLocal != nil {
+									off = tfLocal.Offset(cexpr.Lparen)
+								}
+								flat := flatten(typesSlices)
+								key := fmt.Sprintf("%s:%d:%s", c.file, off, strings.Join(flat, ","))
+								if _, dup := seenResults[key]; !dup {
+									seenResults[key] = struct{}{}
+									fset := world.fsetByFile[c.file]
+									if fset == nil {
+										for _, fs := range world.fsetByFile {
+											fset = fs
+											break
+										}
+									}
+									posn := fset.Position(cexpr.Lparen)
+									results = append(results, Result{
+										Line:  posn.Line,
+										Types: flat,
+									})
+								}
+							}
+						}
+					}
+				}
+
+				// Traverse into callee (cross-file / cross-package)
+				if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
+					if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
+						stack.PushBack(frame{node: next})
+					}
+				}
+			}
+		}
+
+		// 2) AST fallback discovery (handles generics or grammar gaps)
+		for _, ce := range enumerateASTCalls(fr.node.decl.Body) {
+			if _, seen := processed[ce.Lparen]; seen {
+				continue
+			}
+			calleeObj, sel, isMethod := resolveCallFromCallExpr(world, fr.node.fname, ce)
+
+			// f.Fuzz(...) detection
+			if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
+				info := world.infoByFile[fr.node.fname]
+				if info != nil {
+					if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
+						var typesSlices [][]string
+						for _, arg := range ce.Args {
+							if fnLit, ok := arg.(*ast.FuncLit); ok && fnLit.Type != nil && fnLit.Type.Params != nil {
+								types := extractParamTypes(fnLit.Type.Params.List)
+								if len(types) > 0 {
+									typesSlices = append(typesSlices, types)
+								}
+							}
+						}
+						if len(typesSlices) > 0 {
+							tfLocal := world.tfByFile[fr.node.fname]
+							var off int
+							if tfLocal != nil {
+								off = tfLocal.Offset(ce.Lparen)
+							}
+							flat := flatten(typesSlices)
+							key := fmt.Sprintf("%s:%d:%s", fr.node.fname, off, strings.Join(flat, ","))
+							if _, dup := seenResults[key]; !dup {
+								seenResults[key] = struct{}{}
+								fset := world.fsetByFile[fr.node.fname]
+								if fset == nil {
                                     for _, fs := range world.fsetByFile {
                                         fset = fs
                                         break
                                     }
-                                }
-                                posn := fset.Position(cexpr.Lparen)
-                                results = append(results, Result{
-                                    Line:  posn.Line,
-                                    Types: flatten(typesSlices),
-                                })
-                            }
-                        }
-                    }
-                }
+								}
+								posn := fset.Position(ce.Lparen)
+								results = append(results, Result{
+									Line:  posn.Line,
+									Types: flat,
+								})
+							}
+						}
+					}
+				}
+			}
 
-                // Traverse into callee (cross-file / cross-package)
-                if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
-                    if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-                        stack.PushBack(frame{node: next})
-                    }
-                }
-            }
-        }
-
-        // 2) AST fallback discovery (handles generics or grammar gaps)
-        for _, ce := range enumerateASTCalls(fr.node.decl.Body) {
-            if _, seen := processed[ce.Lparen]; seen {
-                continue
-            }
-            calleeObj, sel, isMethod := resolveCallFromCallExpr(world, fr.node.fname, ce)
-
-            // Fuzz detection
-            if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
-                info := world.infoByFile[fr.node.fname]
-                if info != nil {
-                    if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
-                        var typesSlices [][]string
-                        for _, arg := range ce.Args {
-                            fnLit, ok := arg.(*ast.FuncLit)
-                            if !ok || fnLit.Type == nil || fnLit.Type.Params == nil {
-                                continue
-                            }
-                            types := extractParamTypes(fnLit.Type.Params.List)
-                            if len(types) > 0 {
-                                typesSlices = append(typesSlices, types)
-                            }
-                        }
-                        if len(typesSlices) > 0 {
-                            fset := world.fsetByFile[fr.node.fname]
-                            if fset == nil {
-                                for _, fs := range world.fsetByFile {
-                                    fset = fs
-                                    break
-                                }
-                            }
-                            posn := fset.Position(ce.Lparen)
-                            results = append(results, Result{
-                                Line:  posn.Line,
-                                Types: flatten(typesSlices),
-                            })
-                        }
-                    }
-                }
-            }
-
-            // Traverse into callee
-            if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
-                if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-                    stack.PushBack(frame{node: next})
-                }
-            }
-        }
+			// Traverse into callee
+			if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
+				if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
+					stack.PushBack(frame{node: next})
+				}
+			}
+		}
 	}
 
 	if len(results) == 0 {
