@@ -288,8 +288,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 		}
 		if src == nil {
 			// Lazy load if not present (best-effort)
-			data, err := os.ReadFile(fr.node.fname)
-			if err == nil {
+			if data, err := os.ReadFile(fr.node.fname); err == nil {
 				src = data
 			}
 		}
@@ -310,18 +309,53 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 		// Process TS calls first
 		for _, c := range tsCalls {
 			if pos, ok := offsetToPos(world, c.file, c.start); ok {
-				cexpr, _, calleeObj, sel, isMethod, ok2 := resolveCallAtPos(world, c.file, pos)
+				cexpr, _, calleeObj, sel, _, ok2 := resolveCallAtPos(world, c.file, pos)
 				if !ok2 || cexpr == nil {
 					continue
 				}
 
 				processed[cexpr.Lparen] = struct{}{}
 
-				// f.Fuzz(...) detection: method named Fuzz on receiver *testing.F
-				if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
+				// f.Fuzz(...) detection: method named Fuzz from package "testing"
+				if sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
 					info := world.infoByFile[c.file]
 					if info != nil {
-						if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
+						isTestingFuzz := false
+
+						// 1) Preferred: Selection -> method object
+						if selInfo := info.Selections[sel]; selInfo != nil {
+							if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
+								mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
+								isTestingFuzz = true
+							}
+						}
+
+						// 2) Fallback: identifier use -> method object
+						if !isTestingFuzz {
+							if u, ok := info.Uses[sel.Sel].(*types.Func); ok && u.Pkg() != nil &&
+								u.Pkg().Path() == "testing" && u.Name() == "Fuzz" {
+								isTestingFuzz = true
+							}
+						}
+
+						// 3) Last resort: alias-aware receiver check
+						if !isTestingFuzz {
+							var recv types.Type
+							if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
+								recv = tv.Type
+							} else if id, ok := sel.X.(*ast.Ident); ok {
+								if v, ok := info.Uses[id].(*types.Var); ok && v != nil {
+                                    recv = v.Type()
+                                } else if v, ok := info.Defs[id].(*types.Var); ok && v != nil {
+                                    recv = v.Type()
+                                }
+							}
+							if recv != nil && isPtrToTestingF(recv) {
+								isTestingFuzz = true
+							}
+						}
+
+						if isTestingFuzz {
 							var typesSlices [][]string
 							for _, arg := range cexpr.Args {
 								if fnLit, ok := arg.(*ast.FuncLit); ok && fnLit.Type != nil && fnLit.Type.Params != nil {
@@ -344,10 +378,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 									seenResults[key] = struct{}{}
 									fset := world.fsetByFile[c.file]
 									if fset == nil {
-										for _, fs := range world.fsetByFile {
-											fset = fs
-											break
-										}
+										for _, fs := range world.fsetByFile { fset = fs; break }
 									}
 									posn := fset.Position(cexpr.Lparen)
 									results = append(results, Result{
@@ -374,13 +405,48 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 			if _, seen := processed[ce.Lparen]; seen {
 				continue
 			}
-			calleeObj, sel, isMethod := resolveCallFromCallExpr(world, fr.node.fname, ce)
+			calleeObj, sel, _ := resolveCallFromCallExpr(world, fr.node.fname, ce)
 
-			// f.Fuzz(...) detection
-			if isMethod && sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
+			// f.Fuzz(...) detection with testing-method preference + alias-aware fallback
+			if sel != nil && sel.Sel != nil && sel.Sel.Name == "Fuzz" {
 				info := world.infoByFile[fr.node.fname]
 				if info != nil {
-					if selInfo := info.Selections[sel]; selInfo != nil && isPtrToTestingF(selInfo.Recv()) {
+					isTestingFuzz := false
+
+					// 1) Preferred: Selection -> method object
+					if selInfo := info.Selections[sel]; selInfo != nil {
+						if mf, ok := selInfo.Obj().(*types.Func); ok && mf.Pkg() != nil &&
+							mf.Pkg().Path() == "testing" && mf.Name() == "Fuzz" {
+							isTestingFuzz = true
+						}
+					}
+
+					// 2) Fallback: identifier use -> method object
+					if !isTestingFuzz {
+						if u, ok := info.Uses[sel.Sel].(*types.Func); ok && u.Pkg() != nil &&
+							u.Pkg().Path() == "testing" && u.Name() == "Fuzz" {
+							isTestingFuzz = true
+						}
+					}
+
+					// 3) Last resort: alias-aware receiver check
+					if !isTestingFuzz {
+						var recv types.Type
+						if tv, ok := info.Types[sel.X]; ok && tv.Type != nil {
+							recv = tv.Type
+						} else if id, ok := sel.X.(*ast.Ident); ok {
+							if v, ok := info.Uses[id].(*types.Var); ok && v != nil {
+								recv = v.Type()
+							} else if v, ok := info.Defs[id].(*types.Var); ok && v != nil {
+								recv = v.Type()
+							}
+						}
+						if recv != nil && isPtrToTestingF(recv) {
+							isTestingFuzz = true
+						}
+					}
+
+					if isTestingFuzz {
 						var typesSlices [][]string
 						for _, arg := range ce.Args {
 							if fnLit, ok := arg.(*ast.FuncLit); ok && fnLit.Type != nil && fnLit.Type.Params != nil {
@@ -402,10 +468,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 								seenResults[key] = struct{}{}
 								fset := world.fsetByFile[fr.node.fname]
 								if fset == nil {
-                                    for _, fs := range world.fsetByFile {
-                                        fset = fs
-                                        break
-                                    }
+									for _, fs := range world.fsetByFile { fset = fs; break }
 								}
 								posn := fset.Position(ce.Lparen)
 								results = append(results, Result{
@@ -432,6 +495,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 	}
 	return results, nil
 }
+
 
 // enumerateASTCalls returns all *ast.CallExpr nodes inside the given function body.
 func enumerateASTCalls(body *ast.BlockStmt) []*ast.CallExpr {
@@ -767,17 +831,48 @@ func isTestingT(e ast.Expr) bool {
 	return false
 }
 
-// isPtrToTestingF checks for exactly *testing.F using go/types Type.
+// isPtrToTestingF checks whether t ultimately denotes *testing.F,
+// handling aliases-to-pointers (e.g., type Fuzzer = *testing.F).
 func isPtrToTestingF(t types.Type) bool {
+	t = unaliasAll(t)
+
+	// Require an outer pointer.
 	ptr, ok := t.(*types.Pointer)
 	if !ok {
 		return false
 	}
-	named, ok := ptr.Elem().(*types.Named)
+
+	// Chase through aliases and accidental extra pointers coming from aliasing.
+	elem := ptr.Elem()
+	for {
+		elem = unaliasAll(elem)
+		if p, ok := elem.(*types.Pointer); ok {
+			// Alias might have expanded to another pointer; peel it.
+			elem = p.Elem()
+			continue
+		}
+		break
+	}
+
+	named, ok := elem.(*types.Named)
 	if !ok || named.Obj() == nil || named.Obj().Pkg() == nil {
 		return false
 	}
 	return named.Obj().Name() == "F" && named.Obj().Pkg().Path() == "testing"
+}
+
+// unaliasAll peels type aliases until the type is no longer a named alias.
+func unaliasAll(t types.Type) types.Type {
+	for {
+		if n, ok := t.(*types.Named); ok {
+			tn := n.Obj() // *types.TypeName
+			if tn != nil && tn.IsAlias() {
+				t = n.Underlying()
+				continue
+			}
+		}
+		return t
+	}
 }
 
 func exprString(e ast.Expr) string {
