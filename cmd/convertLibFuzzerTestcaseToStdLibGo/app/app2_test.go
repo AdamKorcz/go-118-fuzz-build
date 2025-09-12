@@ -435,3 +435,146 @@ func FuzzCreateCertificate(f *testing.F) {
 		t.Fatalf("types mismatch: got %v want %v", got, want)
 	}
 }
+
+func TestAnalyzeFile_DeepCopyChain_InterfacePropagation(t *testing.T) {
+	tmp := t.TempDir()
+
+	// Module root
+	goMod := `module istio.io/istio
+
+go 1.22
+`
+	if err := os.WriteFile(filepath.Join(tmp, "go.mod"), []byte(goMod), 0o644); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+
+	// pkg/fuzz/test: Fuzzer interface
+	testDir := filepath.Join(tmp, "pkg", "fuzz", "test")
+	if err := os.MkdirAll(testDir, 0o755); err != nil {
+		t.Fatalf("mkdir fuzz/test: %v", err)
+	}
+	testSrc := `package test
+
+// Fuzzer abstracts *testing.F
+type Fuzzer interface {
+	Fuzz(ff any)
+	Add(args ...any)
+}
+`
+	if err := os.WriteFile(filepath.Join(testDir, "fuzzer.go"), []byte(testSrc), 0o644); err != nil {
+		t.Fatalf("write fuzz/test/fuzzer.go: %v", err)
+	}
+
+	// pkg/fuzz: helper + stubs used by the deepcopy code
+	fuzzDir := filepath.Join(tmp, "pkg", "fuzz")
+	if err := os.MkdirAll(fuzzDir, 0o755); err != nil {
+		t.Fatalf("mkdir pkg/fuzz: %v", err)
+	}
+	fuzzSrc := `package fuzz
+
+import "testing"
+import test "istio.io/istio/pkg/fuzz/test"
+
+type Helper struct{}
+
+func BaseCases(f test.Fuzzer) {}
+func Finalize()               {}
+func New(t *testing.T, data []byte) Helper { return Helper{} }
+
+// Minimal helpers used by the deepcopy pipeline
+func (Helper) T() *testing.T { return new(testing.T) }
+
+func Struct[T any](Helper) T          { var zero T; return zero }
+func DeepCopySlow[T any](v T) T       { return v }
+func MutateStruct(_ *testing.T, _ any) {}
+
+// EXACT helper that ultimately calls (*testing.F).Fuzz
+func Fuzz(f test.Fuzzer, ff func(fg Helper)) {
+	BaseCases(f)
+	f.Fuzz(func(t *testing.T, data []byte) {
+		defer Finalize()
+		fg := New(t, data)
+		ff(fg)
+	})
+}
+`
+	if err := os.WriteFile(filepath.Join(fuzzDir, "util.go"), []byte(fuzzSrc), 0o644); err != nil {
+		t.Fatalf("write pkg/fuzz/util.go: %v", err)
+	}
+
+	// pkg/assert: no-op Equal to satisfy imports in the sample
+	assertDir := filepath.Join(tmp, "pkg", "assert")
+	if err := os.MkdirAll(assertDir, 0o755); err != nil {
+		t.Fatalf("mkdir pkg/assert: %v", err)
+	}
+	assertSrc := `package assert
+
+import "testing"
+
+func Equal(_ *testing.T, _ any, _ any) {}
+`
+	if err := os.WriteFile(filepath.Join(assertDir, "assert.go"), []byte(assertSrc), 0o644); err != nil {
+		t.Fatalf("write pkg/assert/assert.go: %v", err)
+	}
+
+	// ca package: root fuzz + generic hop + interface param
+	caDir := filepath.Join(tmp, "ca")
+	if err := os.MkdirAll(caDir, 0o755); err != nil {
+		t.Fatalf("mkdir ca: %v", err)
+	}
+	caSrc := `package ca
+
+import (
+	"testing"
+	"istio.io/istio/pkg/assert"
+	"istio.io/istio/pkg/fuzz"
+	test "istio.io/istio/pkg/fuzz/test"
+)
+
+type ServiceInstance struct{}
+
+func (s *ServiceInstance) DeepCopy() *ServiceInstance { return s }
+
+type deepCopier[T any] interface {
+	DeepCopy() T
+}
+
+func FuzzDeepCopyServiceInstance(f *testing.F) {
+	fuzzDeepCopy[*ServiceInstance](f)
+}
+
+func fuzzDeepCopy[T deepCopier[T]](f test.Fuzzer) {
+	fuzz.Fuzz(f, func(fg fuzz.Helper) {
+		orig := fuzz.Struct[T](fg)
+		fast := orig.DeepCopy()
+		slow := fuzz.DeepCopySlow[T](orig)
+
+		// check copy is correct
+		assert.Equal(fg.T(), orig, fast)
+		assert.Equal(fg.T(), orig, slow)
+
+		// check is deep copy
+		fuzz.MutateStruct(fg.T(), &orig)
+		assert.Equal(fg.T(), fast, slow)
+	})
+}
+`
+	caFile := filepath.Join(caDir, "fuzz_deepcopy_test.go")
+	if err := os.WriteFile(caFile, []byte(caSrc), 0o644); err != nil {
+		t.Fatalf("write ca file: %v", err)
+	}
+
+	// Analyze and assert
+	res, err := AnalyzeFile(caFile, "FuzzDeepCopyServiceInstance")
+	if err != nil {
+		t.Fatalf("AnalyzeFile error: %v", err)
+	}
+	if len(res) != 1 {
+		t.Fatalf("expected 1 result, got %d (res=%v)", len(res), res)
+	}
+	got := res[0].Types
+	want := []string{"[]byte"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("types mismatch: got %v want %v", got, want)
+	}
+}

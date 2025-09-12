@@ -410,7 +410,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 				// Traverse into callee (cross-file / cross-package), carrying bindings
 				if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
 					if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-						bind := inferTestingFBindingsForCall(world, c.file, cexpr, next.decl)
+						bind := inferTestingFBindingsForCall(world, c.file, fr.testingFParams, cexpr, next.decl)
 						stack.PushBack(frame{node: next, testingFParams: bind})
 					}
 				}
@@ -511,7 +511,7 @@ func analyzeAST(world *astWorld, filename string, funcName string) ([]Result, er
 			// Traverse into callee (carry bindings)
 			if fnObj, ok := calleeObj.(*types.Func); ok && fnObj != nil {
 				if next := findFuncNodeForObject(world, fnObj); next != nil && next.decl.Body != nil {
-					bind := inferTestingFBindingsForCall(world, fr.node.fname, ce, next.decl)
+					bind := inferTestingFBindingsForCall(world, fr.node.fname, fr.testingFParams, ce, next.decl)
 					stack.PushBack(frame{node: next, testingFParams: bind})
 				}
 			}
@@ -934,7 +934,7 @@ func computeTestingFParamNamesFromDecl(fd *ast.FuncDecl) map[string]bool {
 
 // inferTestingFBindingsForCall maps callee param names to true if the corresponding argument
 // at the callsite is statically a *testing.F. It also includes params directly typed as *testing.F.
-func inferTestingFBindingsForCall(world *astWorld, callerFile string, call *ast.CallExpr, callee *ast.FuncDecl) map[string]bool {
+func inferTestingFBindingsForCall(world *astWorld, callerFile string, callerBindings map[string]bool, call *ast.CallExpr, callee *ast.FuncDecl) map[string]bool {
 	bind := computeTestingFParamNamesFromDecl(callee) // start with direct types
 	paramNames := flattenParamNames(callee)
 	info := world.infoByFile[callerFile]
@@ -942,13 +942,18 @@ func inferTestingFBindingsForCall(world *astWorld, callerFile string, call *ast.
 		return bind
 	}
 	for i := 0; i < len(paramNames) && i < len(call.Args); i++ {
-		name := paramNames[i]
-		if name == "" {
-			continue
-		}
-		if ty := typeOfExpr(world, callerFile, call.Args[i]); ty != nil && isPtrToTestingF(ty) {
-			bind[name] = true
-		}
+	    name := paramNames[i]
+	    if name == "" {
+	        continue
+	    }
+	    if ty := typeOfExpr(world, callerFile, call.Args[i]); ty != nil && isPtrToTestingF(ty) {
+	        bind[name] = true
+	        continue
+	    }
+	    // NEW: if the arg is an identifier bound as *testing.F in the caller frame, propagate.
+	    if id, ok := call.Args[i].(*ast.Ident); ok && callerBindings != nil && callerBindings[id.Name] {
+	        bind[name] = true
+	    }
 	}
 	return bind
 }
