@@ -577,4 +577,78 @@ func fuzzDeepCopy[T deepCopier[T]](f test.Fuzzer) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("types mismatch: got %v want %v", got, want)
 	}
+
+	// cilium case
+	statedbDir := filepath.Join(tmp, "pkg", "statedb")
+	if err := os.MkdirAll(statedbDir, 0o755); err != nil {
+		t.Fatalf("mkdir pkg/statedb: %v", err)
+	}
+	statedbSrc := `package statedb
+
+// TableWritable is intentionally empty here; any type satisfies it for our test.
+type TableWritable interface{}
+`
+	if err := os.WriteFile(filepath.Join(statedbDir, "statedb.go"), []byte(statedbSrc), 0o644); err != nil {
+		t.Fatalf("write pkg/statedb/statedb.go: %v", err)
+	}
+
+	// loadbalancer package with BOTH functions in the same file, as requested.
+	lbDir := filepath.Join(tmp, "pkg", "loadbalancer")
+	if err := os.MkdirAll(lbDir, 0o755); err != nil {
+		t.Fatalf("mkdir pkg/loadbalancer: %v", err)
+	}
+	lbSrc := `package loadbalancer
+
+import (
+	"testing"
+	"cilium/pkg/statedb"
+)
+
+// Backend type to use as the concrete type argument.
+type Backend struct{}
+
+// Entry point that calls the generic helper with a concrete type argument.
+func FuzzJSONBackend(f *testing.F) {
+	tableRowJSONFuzzer[*Backend](f)
+}
+
+// Generic helper (same file) that ultimately calls (*testing.F).Fuzz with []byte.
+func tableRowJSONFuzzer[T statedb.TableWritable](f *testing.F) {
+	f.Fuzz(func(t *testing.T, data []byte) {
+		// body not relevant for analysis
+	})
+}
+`
+	lbFile := filepath.Join(lbDir, "fuzz_jsonbackend_test.go")
+	if err := os.WriteFile(lbFile, []byte(lbSrc), 0o644); err != nil {
+		t.Fatalf("write pkg/loadbalancer/fuzz_jsonbackend_test.go: %v", err)
+	}
+
+	// Ensure the package is discoverable by packages.Load by adding one non-test file.
+	lbStub := `package loadbalancer
+
+	// stub ensures this package has at least one non-test source file.
+	const _loadbalancerStub = 0
+	`
+	if err := os.WriteFile(filepath.Join(lbDir, "zz_stub.go"), []byte(lbStub), 0o644); err != nil {
+		t.Fatalf("write pkg/loadbalancer/zz_stub.go: %v", err)
+	}
+
+	cacheMu.Lock()
+	delete(moduleWorldCache, tmp) // tmp is the absolute module root path
+	cacheMu.Unlock()
+
+	// Analyze and assert for the Cilium-style case.
+	res3, err := AnalyzeFile(lbFile, "FuzzJSONBackend")
+	if err != nil {
+		t.Fatalf("AnalyzeFile(FuzzJSONBackend) error: %v", err)
+	}
+	if len(res3) != 1 {
+		t.Fatalf("expected 1 result for FuzzJSONBackend, got %d (res=%v)", len(res3), res3)
+	}
+	got3 := res3[0].Types
+	want3 := []string{"[]byte"}
+	if !reflect.DeepEqual(got3, want3) {
+		t.Fatalf("FuzzJSONBackend types mismatch: got %v want %v", got3, want3)
+	}
 }
