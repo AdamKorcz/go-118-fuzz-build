@@ -487,10 +487,12 @@ func ZipCorpusFromGoFuzzCases(inputDir, outputName string, verbose bool) error {
 		return fmt.Errorf("failed to finalize zip: %w", err)
 	}
 
-	err = os.Rename(tmpZipPath, existingZipPath)
+	// Use copy + remove instead of rename to handle cross-device scenarios
+	err = copyFile(tmpZipPath, existingZipPath)
 	if err != nil {
-		return fmt.Errorf("failed to move zip file to $OUT: %w", err)
+		return fmt.Errorf("failed to copy zip file to $OUT: %w", err)
 	}
+	os.Remove(tmpZipPath) // Clean up temp file
 
 	// Verbose output
 	if verbose {
@@ -505,4 +507,24 @@ func ZipCorpusFromGoFuzzCases(inputDir, outputName string, verbose bool) error {
 	}
 
 	return nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
 }
