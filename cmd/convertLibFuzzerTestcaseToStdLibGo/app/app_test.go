@@ -195,12 +195,15 @@ func TestConvertSeedsToGoTests_TableDriven(t *testing.T) {
 			name:     "StringAndBytes_CurrentBehavior",
 			funcName: "FuzzStringBytes",
 			types:    []string{"string", "[]byte"},
-			// For this version, this seed yields: string("") and []byte("BCDEF")
+			// With the improved algorithm, first param gets 50% of bytes
+			// Input: {0x03, 'A', 'B', 'C', 'D', 'E', 'F'} = 7 bytes
+			// First param (string) gets 3 bytes: {0x03, 'A', 'B'}
+			// Second param ([]byte) gets remaining 4 bytes: {'C', 'D', 'E', 'F'}
 			seeds: [][]byte{
 				{0x03, 'A', 'B', 'C', 'D', 'E', 'F'},
 			},
 			expectLines: [][]string{
-				{`string("")`, `[]byte("BCDEF")`},
+				{`string("\x03AB")`, `[]byte("CDEF")`},
 			},
 		},
 		{

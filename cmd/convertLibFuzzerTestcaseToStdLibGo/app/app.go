@@ -1158,8 +1158,8 @@ func ConvertSeedsToGoTests(seedsDir, outDir, jsonPath, funcName string) (int, er
 		// 1) Create Source from raw bytes.
 		src := inputpkg.NewSource(data)
 
-		// 2) Invoke CreateGoTestcase with our empty func.
-		outVal := src.CreateGoTestcase(emptyFn.Interface(), reflect.ValueOf(new(testing.T)))
+		// 2) Invoke CreateGoTestcaseWithBoundaries for better multi-parameter fuzzer support
+		outVal := src.CreateGoTestcaseWithBoundaries(emptyFn.Interface(), reflect.ValueOf(new(testing.T)))
 
 		// 3) Normalize to []byte.
 		var outBytes []byte

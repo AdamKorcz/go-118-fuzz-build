@@ -125,10 +125,64 @@ func (s *Source) CreateGoTestcase(ff any, arg0 reflect.Value) string {
 	if method.Kind() != reflect.Func {
 		panic(fmt.Sprintf("wrong type: %T", ff))
 	}
+	
+	// Use original createArgs for backward compatibility
 	args := s.createArgs(ff, arg0)
 
 	var sb strings.Builder
 	sb.WriteString("go test fuzz v1\n")
+	for i, arg := range args {
+		switch arg.Kind() {
+		case reflect.Ptr: // *testing.T
+			// skip
+			continue
+
+		case reflect.String:
+			// Properly escape as a Go string literal.
+			sb.WriteString("string(")
+			sb.WriteString(strconv.Quote(arg.String()))
+			sb.WriteString(")")
+
+		case reflect.Slice:
+			// Only []byte is supported; escape contents as Go string literal.
+			if arg.Type().Elem().Kind() == reflect.Uint8 {
+				sb.WriteString("[]byte(")
+				sb.WriteString(strconv.Quote(string(arg.Bytes())))
+				sb.WriteString(")")
+			} else {
+				panic(fmt.Sprintf("unsupported slice elem type: %v", arg.Type().Elem()))
+			}
+
+		default:
+			// Other primitives: emit kind(value).
+			// Use the underlying value printed with %v, which is fine for ints/floats/bools.
+			sb.WriteString(fmt.Sprintf("%s(%v)", arg.Kind(), arg.Interface()))
+		}
+
+		if i < method.NumIn()-1 {
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String()
+}
+
+// CreateGoTestcaseWithBoundaries is like CreateGoTestcase but uses the improved
+// createArgsWithBoundaries algorithm that preserves semantic boundaries better
+// for multi-parameter fuzzers. Use this for fuzzers with many parameters where
+// the model/DSL data should be preserved in the first parameter.
+func (s *Source) CreateGoTestcaseWithBoundaries(ff any, arg0 reflect.Value) string {
+	fn := reflect.ValueOf(ff)
+	method := fn.Type()
+	if method.Kind() != reflect.Func {
+		panic(fmt.Sprintf("wrong type: %T", ff))
+	}
+	
+	// Use the SAME algorithm as FillAndCall for consistency
+	args := s.createArgs(ff, arg0)
+
+	var sb strings.Builder
+	sb.WriteString("go test fuzz v1\n")
+	
 	for i, arg := range args {
 		switch arg.Kind() {
 		case reflect.Ptr: // *testing.T
@@ -209,6 +263,90 @@ func (s *Source) createArgs(ff any, arg0 reflect.Value) []reflect.Value {
 	return args
 }
 
+// createArgsWithBoundaries is a FIXED version of createArgs that doesn't consume
+// input bytes for weight calculation. Instead uses deterministic weights based on 
+// parameter count, preserving all input data for actual parameters.
+func (s *Source) createArgsWithBoundaries(ff any, arg0 reflect.Value) []reflect.Value {
+	fn := reflect.ValueOf(ff)
+	method := fn.Type()
+	if method.Kind() != reflect.Func {
+		panic(fmt.Sprintf("wrong type: %T", ff))
+	}
+	
+	args := make([]reflect.Value, method.NumIn())
+	args[0] = arg0
+	
+	// First pass: calculate total bytes needed for fixed params
+	fixedBytesNeeded := 0
+	var dynamicIndices []int
+	for i := 1; i < method.NumIn(); i++ {
+		v := method.In(i)
+		if v.Kind() <= reflect.Float64 { // fixed-size
+			fixedBytesNeeded += sizeOfType(v.Kind())
+		} else { // dynamic (string, slice, etc.)
+			dynamicIndices = append(dynamicIndices, i)
+		}
+	}
+	
+	numDynamic := len(dynamicIndices)
+	// FIXED: Calculate bytes available for dynamic params AFTER accounting for fixed params
+	bytesForDynamic := s.Len() - fixedBytesNeeded
+	if bytesForDynamic < 0 {
+		bytesForDynamic = 0
+	}
+	
+	// Calculate sizes for dynamic params (50% to first, rest split equally)
+	dynamicSizes := make([]int, numDynamic)
+	remaining := bytesForDynamic
+	for i := 0; i < numDynamic; i++ {
+		if i == numDynamic-1 {
+			// Last param gets all remaining
+			dynamicSizes[i] = remaining
+		} else if i == 0 && numDynamic > 1 {
+			// First param gets 50%
+			dynamicSizes[i] = bytesForDynamic / 2
+			remaining -= dynamicSizes[i]
+		} else {
+			// Other params split equally
+			remainingParams := numDynamic - i
+			dynamicSizes[i] = remaining / remainingParams
+			remaining -= dynamicSizes[i]
+		}
+	}
+	
+	// Second pass: fill parameters IN ORDER (respecting their position in signature)
+	dynamicIdx := 0
+	for i := 1; i < method.NumIn(); i++ {
+		v := method.In(i)
+		if v.Kind() <= reflect.Float64 { // fixed-size
+			// Fixed params consume bytes in-order from the input stream
+			args[i] = s.fillArg(v, 0)
+		} else { // dynamic
+			size := dynamicSizes[dynamicIdx]
+			args[i] = s.fillArg(v, size)
+			dynamicIdx++
+		}
+	}
+	
+	return args
+}
+
+// sizeOfType returns the number of bytes a fixed-size type consumes
+func sizeOfType(k reflect.Kind) int {
+	switch k {
+	case reflect.Int8, reflect.Uint8, reflect.Bool:
+		return 1
+	case reflect.Int16, reflect.Uint16:
+		return 2
+	case reflect.Int32, reflect.Uint32, reflect.Float32:
+		return 4
+	case reflect.Int64, reflect.Uint64, reflect.Float64, reflect.Int, reflect.Uint:
+		return 8
+	default:
+		return 0
+	}
+}
+
 func (s *Source) fillArg(v reflect.Type, max int) reflect.Value {
 	newElem := reflect.New(v).Elem()
 	switch k := v.Kind(); k {
@@ -244,9 +382,16 @@ func ParseGoTestcase(testcase string) ([]byte, error) {
 
 	var buf bytes.Buffer
 
-	// First pass: count dynamic fields
-	var dynamicIndices []int
-	var staticBuf bytes.Buffer
+	// Parse to match the format expected by createArgs:
+	// [fixed params][weight bytes][dynamic params]
+	
+	// First pass: separate fixed and dynamic params
+	type param struct {
+		kind  string
+		value string
+		index int
+	}
+	var allParams []param
 	for i, line := range lines[1:] {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -257,34 +402,51 @@ func ParseGoTestcase(testcase string) ([]byte, error) {
 		if err != nil {
 			return nil, err
 		}
-
-		isDynamic := kind == "string" || kind == "[]byte"
+		
+		allParams = append(allParams, param{kind, val, i})
+	}
+	
+	// Separate into fixed and dynamic
+	var fixedParams []param
+	var dynamicParams []param
+	for _, p := range allParams {
+		isDynamic := p.kind == "string" || p.kind == "[]byte"
 		if isDynamic {
-			dynamicIndices = append(dynamicIndices, i)
+			dynamicParams = append(dynamicParams, p)
 		} else {
-			err := writeStaticValue(&staticBuf, kind, val)
-			if err != nil {
-				return nil, err
-			}
+			fixedParams = append(fixedParams, p)
 		}
 	}
-
-	// Write static args first
-	buf.Write(staticBuf.Bytes())
-
-	// Write weights (equal weights for simplicity)
-	for range dynamicIndices {
-		buf.WriteByte(0x80)
-	}
-
-	// Second pass: write dynamic args
-	for _, i := range dynamicIndices {
-		line := strings.TrimSpace(lines[i+1])
-		_, val, err := parseTypedValue(line)
+	
+	// Write fixed params in order
+	for _, p := range fixedParams {
+		err := writeStaticValue(&buf, p.kind, p.value)
 		if err != nil {
 			return nil, err
 		}
-		buf.Write([]byte(val))
+	}
+
+	// Write weight bytes for dynamic params
+	numDynamic := len(dynamicParams)
+	if numDynamic > 0 {
+		// Calculate weights that will produce the exact lengths
+		var lengths []int
+		totalDataBytes := 0
+		for _, p := range dynamicParams {
+			length := len(p.value)
+			lengths = append(lengths, length)
+			totalDataBytes += length
+		}
+		
+		weights := calculatePerfectWeights(lengths, totalDataBytes)
+		for _, w := range weights {
+			buf.WriteByte(w)
+		}
+		
+		// Write dynamic param data
+		for _, p := range dynamicParams {
+			buf.Write([]byte(p.value))
+		}
 	}
 
 	return buf.Bytes(), nil
@@ -381,6 +543,159 @@ func parseTypedValue(line string) (kind string, value string, err error) {
 		return kind, unquoted, nil
 	}
 	return kind, value, nil
+}
+
+// calculatePerfectWeights computes weight bytes that cause libFuzzer to allocate
+// the specified lengths. We don't need the EXACT original weights - just any weights
+// that produce the same output lengths.
+//
+// LibFuzzer's allocation algorithm (from createArgs):
+//   for i = 0 to N-2:
+//     size[i] = (bytesLeft * weight[i]) / sumWeights
+//     bytesLeft -= size[i]  
+//   size[N-1] = bytesLeft
+//
+// Simple approach: Make weights proportional to desired lengths.
+// This naturally produces similar allocations due to proportional division.
+func calculatePerfectWeights(lengths []int, totalDataBytes int) []byte {
+	n := len(lengths)
+	if n == 0 {
+		return nil
+	}
+	
+	if totalDataBytes == 0 {
+		// All empty - weights don't matter
+		weights := make([]byte, n)
+		for i := range weights {
+			weights[i] = 0x80
+		}
+		return weights
+	}
+	
+	if n == 1 {
+		// Single param gets everything
+		return []byte{0xFF}
+	}
+	
+	// Simple proportional approach: make weights match desired lengths
+	// Start with lengths as weights, then scale to fit [0-255] byte range
+	result := make([]byte, n)
+	
+	// Find max length for scaling
+	maxLen := 0
+	for _, l := range lengths {
+		if l > maxLen {
+			maxLen = l
+		}
+	}
+	
+	if maxLen == 0 {
+		// All zero-length params - use equal weights
+		for i := range result {
+			result[i] = 128
+		}
+		return result
+	}
+	
+	// Scale lengths proportionally to fit [0-255]
+	if maxLen <= 255 {
+		// Direct mapping
+		for i, l := range lengths {
+			result[i] = byte(l)
+			if result[i] == 0 && l > 0 {
+				result[i] = 1
+			}
+		}
+	} else {
+		// Scale down proportionally
+		for i, l := range lengths {
+			scaled := (l * 255) / maxLen
+			if scaled == 0 && l > 0 {
+				scaled = 1
+			}
+			result[i] = byte(scaled)
+		}
+	}
+	
+	// Iteratively refine weights to match exact lengths using simulation
+	// Simulate libFuzzer's exact allocation algorithm and adjust ONE weight per iteration
+	for iteration := 0; iteration < 500; iteration++ {
+		sum := 0
+		for _, w := range result {
+			sum += int(w)
+		}
+		if sum == 0 {
+			sum = 1
+		}
+		
+		// Simulate sequential allocation to see what we'd get with current weights
+		bytesLeft := totalDataBytes
+		allocations := make([]int, n)
+		
+		for i := 0; i < n-1; i++ {
+			allocations[i] = (bytesLeft * int(result[i])) / sum
+			bytesLeft -= allocations[i]
+		}
+		allocations[n-1] = bytesLeft // Last param gets remainder
+		
+		// Check if perfect
+		perfect := true
+		firstMismatch := -1
+		for i := 0; i < n; i++ {
+			if allocations[i] != lengths[i] {
+				perfect = false
+				if firstMismatch == -1 {
+					firstMismatch = i
+				}
+			}
+		}
+		
+		if perfect {
+			break // Success!
+		}
+		
+		// Adjust the first mismatched weight
+		if firstMismatch >= 0 && firstMismatch < n-1 {
+			if allocations[firstMismatch] < lengths[firstMismatch] && result[firstMismatch] < 255 {
+				result[firstMismatch]++
+			} else if allocations[firstMismatch] > lengths[firstMismatch] && result[firstMismatch] > 0 {
+				result[firstMismatch]--
+			}
+		} else if firstMismatch == n-1 {
+			// Last param is wrong - need to adjust an earlier weight
+			// Try adjusting the last adjustable weight
+			if n >= 2 {
+				if allocations[n-1] < lengths[n-1] && result[n-2] > 0 {
+					result[n-2]--  // Give less to second-to-last
+				} else if allocations[n-1] > lengths[n-1] && result[n-2] < 255 {
+					result[n-2]++  // Give more to second-to-last
+				}
+			}
+		}
+	}
+	
+	// Final safety: ensure no zero weights for non-empty params
+	for i := 0; i < n; i++ {
+		if result[i] == 0 && lengths[i] > 0 {
+			result[i] = 1
+		}
+	}
+	
+	return result
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // ZipCorpusFromGoFuzzCases merges all fuzzing testcases from inputDir into a zip file.

@@ -1458,7 +1458,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_10.txt"), filepath.Join(tempDir, "edgecase_test_10.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_10.txt"), filepath.Join(tempDir, "edgecase_test_10.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1519,7 +1519,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_11.txt"), filepath.Join(tempDir, "edgecase_test_11.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_11.txt"), filepath.Join(tempDir, "edgecase_test_11.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1595,7 +1595,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_12.txt"), filepath.Join(tempDir, "edgecase_test_12.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_12.txt"), filepath.Join(tempDir, "edgecase_test_12.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1656,7 +1656,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_13.txt"), filepath.Join(tempDir, "edgecase_test_13.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_13.txt"), filepath.Join(tempDir, "edgecase_test_13.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1726,7 +1726,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_14.txt"), filepath.Join(tempDir, "edgecase_test_14.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_14.txt"), filepath.Join(tempDir, "edgecase_test_14.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1790,7 +1790,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_15.txt"), filepath.Join(tempDir, "edgecase_test_15.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_15.txt"), filepath.Join(tempDir, "edgecase_test_15.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1869,7 +1869,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_16.txt"), filepath.Join(tempDir, "edgecase_test_16.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_16.txt"), filepath.Join(tempDir, "edgecase_test_16.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -1942,7 +1942,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_17.txt"), filepath.Join(tempDir, "edgecase_test_17.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_17.txt"), filepath.Join(tempDir, "edgecase_test_17.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2003,7 +2003,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_18.txt"), filepath.Join(tempDir, "edgecase_test_18.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_18.txt"), filepath.Join(tempDir, "edgecase_test_18.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2064,7 +2064,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_19.txt"), filepath.Join(tempDir, "edgecase_test_19.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_19.txt"), filepath.Join(tempDir, "edgecase_test_19.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2140,7 +2140,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_2.txt"), filepath.Join(tempDir, "edgecase_test_2.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_2.txt"), filepath.Join(tempDir, "edgecase_test_2.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2204,7 +2204,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_3.txt"), filepath.Join(tempDir, "edgecase_test_3.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_3.txt"), filepath.Join(tempDir, "edgecase_test_3.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2274,7 +2274,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_4.txt"), filepath.Join(tempDir, "edgecase_test_4.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_4.txt"), filepath.Join(tempDir, "edgecase_test_4.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2344,7 +2344,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_5.txt"), filepath.Join(tempDir, "edgecase_test_5.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_5.txt"), filepath.Join(tempDir, "edgecase_test_5.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2408,7 +2408,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_6.txt"), filepath.Join(tempDir, "edgecase_test_6.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_6.txt"), filepath.Join(tempDir, "edgecase_test_6.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2481,7 +2481,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_7.txt"), filepath.Join(tempDir, "edgecase_test_7.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_7.txt"), filepath.Join(tempDir, "edgecase_test_7.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2551,7 +2551,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_8.txt"), filepath.Join(tempDir, "edgecase_test_8.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_8.txt"), filepath.Join(tempDir, "edgecase_test_8.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2612,7 +2612,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 		outDir := t.TempDir()
 		t.Setenv("OUT", outDir)
 
-		copyFile(t, filepath.Join("testdata", "edgecase_test_9.txt"), filepath.Join(tempDir, "edgecase_test_9.txt"))
+		copyFileForTest(t, filepath.Join("testdata", "edgecase_test_9.txt"), filepath.Join(tempDir, "edgecase_test_9.txt"))
 
 		if err := ZipCorpusFromGoFuzzCases(tempDir, "zipfuzz", false); err != nil {
 			t.Fatalf("failed to create zip: %v", err)
@@ -2678,7 +2678,7 @@ func TestZipCorpusFromGoFuzzCases_InlineAssert(t *testing.T) {
 	})
 }
 
-func copyFile(t *testing.T, src, dst string) {
+func copyFileForTest(t *testing.T, src, dst string) {
 	in, err := os.Open(src)
 	if err != nil {
 		t.Fatalf("failed to open source file: %v", err)
