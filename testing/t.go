@@ -100,17 +100,25 @@ func (t *T) Setenv(key, value string) {
 }
 
 func (t *T) Skip(args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(args...))
 }
 func (t *T) SkipNow() {
 	panic("GO-FUZZ-BUILD-PANIC")
 }
-
-// Is not really supported. We just skip instead
-// of printing any message. A log message can be
-// added if need be.
 func (t *T) Skipf(format string, args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(format))
+}
+
+// skipMessage returns "GO-FUZZ-UNINTERESTING" if any argument equals that
+// string, signalling to the fuzzer that the input should be discarded from
+// the corpus. Otherwise it returns "GO-FUZZ-BUILD-PANIC".
+func skipMessage(args ...any) string {
+	for _, arg := range args {
+		if s, ok := arg.(string); ok && s == "GO-FUZZ-UNINTERESTING" {
+			return "GO-FUZZ-UNINTERESTING"
+		}
+	}
+	return "GO-FUZZ-BUILD-PANIC"
 }
 func (t *T) Skipped() bool {
 	panic(unsupportedApi("t.Skipped()"))

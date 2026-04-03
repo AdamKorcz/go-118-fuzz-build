@@ -82,15 +82,24 @@ func (c *F) Logf(format string, args ...any) {
 func (c *F) Name() string             { return "libFuzzer" }
 func (c *F) Setenv(key, value string) {}
 func (c *F) Skip(args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(args...))
 }
 func (c *F) SkipNow() {
 	panic("GO-FUZZ-BUILD-PANIC")
 }
 func (c *F) Skipf(format string, args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(format))
 }
 func (f *F) Skipped() bool { return false }
+
+func skipMessage(args ...any) string {
+	for _, arg := range args {
+		if s, ok := arg.(string); ok && s == "GO-FUZZ-UNINTERESTING" {
+			return "GO-FUZZ-UNINTERESTING"
+		}
+	}
+	return "GO-FUZZ-BUILD-PANIC"
+}
 
 func (f *F) TempDir() string {
 	dir, err := os.MkdirTemp("", "fuzzdir-")
@@ -861,9 +870,9 @@ var (
 		"func (t *T) Parallel() {":                               "func (t *T) Parallel() {\npanic(\"t.Parallel()\")",
 		"func (t *T) Run(name string, f func(t *T)) bool {":      "func (t *T) Run(name string, f func(t *T)) bool {\nf(t)\nreturn true",
 		////////"func (c *common) Setenv(key, value string) {": "func (c *common) Setenv(key, value string) {\n"
-		"func (c *common) Skip(args ...any) {":    "func (c *common) Skip(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skip(args ...any) {":    "func (c *common) Skip(args ...any) {\nfor _, arg := range args {\nif s, ok := arg.(string); ok && s == \"GO-FUZZ-UNINTERESTING\" {\npanic(\"GO-FUZZ-UNINTERESTING\")\n}\n}\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) SkipNow(args ...any) {": "func (c *common) SkipNow(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
-		"func (c *common) Skipf(args ...any) {":   "func (c *common) Skipf(args ...any) {\npanic(\"GO-FUZZ-BUILD-PANIC\")",
+		"func (c *common) Skipf(args ...any) {":   "func (c *common) Skipf(args ...any) {\nif len(args) > 0 {\nif s, ok := args[0].(string); ok && s == \"GO-FUZZ-UNINTERESTING\" {\npanic(\"GO-FUZZ-UNINTERESTING\")\n}\n}\npanic(\"GO-FUZZ-BUILD-PANIC\")",
 		"func (c *common) Skipped() bool {":       "func (c *common) Skipped() bool {\npanic(\"t.Skipped()\")",
 		"type T struct {":                         "type T struct {\ntempDirsParentDir string",
 		//"func (c *common) TempDir() string {": "func (c *common) TempDir() string {\ntmpFuzzDir, err := os.MkdirTemp(c.tempDirsParentDir, \"fuzzdir-\")\nif err != nil {\npanic(err)\n}\nreturn tmpFuzzDir",

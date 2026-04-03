@@ -426,6 +426,11 @@ return true
 			source: `func (c *common) Skip(args ...any) {
 }`,
 			expected: `func (c *common) Skip(args ...any) {
+for _, arg := range args {
+if s, ok := arg.(string); ok && s == "GO-FUZZ-UNINTERESTING" {
+panic("GO-FUZZ-UNINTERESTING")
+}
+}
 panic("GO-FUZZ-BUILD-PANIC")
 }`,
 		},
@@ -440,6 +445,11 @@ panic("GO-FUZZ-BUILD-PANIC")
 			source: `func (c *common) Skipf(args ...any) {
 }`,
 			expected: `func (c *common) Skipf(args ...any) {
+if len(args) > 0 {
+if s, ok := args[0].(string); ok && s == "GO-FUZZ-UNINTERESTING" {
+panic("GO-FUZZ-UNINTERESTING")
+}
+}
 panic("GO-FUZZ-BUILD-PANIC")
 }`,
 		},

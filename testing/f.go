@@ -45,13 +45,13 @@ func (c *F) Logf(format string, args ...any) {
 func (c *F) Name() string             { return "libFuzzer" }
 func (c *F) Setenv(key, value string) {}
 func (c *F) Skip(args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(args...))
 }
 func (c *F) SkipNow() {
 	panic("GO-FUZZ-BUILD-PANIC")
 }
 func (c *F) Skipf(format string, args ...any) {
-	panic("GO-FUZZ-BUILD-PANIC")
+	panic(skipMessage(format))
 }
 func (f *F) Skipped() bool { return false }
 
