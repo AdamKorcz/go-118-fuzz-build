@@ -259,9 +259,11 @@ import (
 import "C"
 
 //export LLVMFuzzerTestOneInput
-func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) C.int {
+func LLVMFuzzerTestOneInput(data *C.char, size C.size_t) (ret C.int) {
 	s := (*[1<<30]byte)(unsafe.Pointer(data))[:size:size]
-	defer catchPanics()
+	defer func() {
+		ret = C.int(catchPanics())
+	}()
 	LibFuzzer{{.Func}}(s)
 	return 0
 }
@@ -273,7 +275,7 @@ func LibFuzzer{{.Func}}(data []byte) int {
 	return 1
 }
 
-func catchPanics() {
+func catchPanics() int {
 	if r := recover(); r != nil {
 		var err string
 		switch r.(type) {
@@ -284,12 +286,15 @@ func catchPanics() {
 		case error:
 			err = r.(error).Error()
 		}
-		if strings.Contains(err, "GO-FUZZ-BUILD-PANIC") {
-			return
-		} else {
-			panic(err)
+		if strings.Contains(err, "GO-FUZZ-UNINTERESTING") {
+			return -1
 		}
+		if strings.Contains(err, "GO-FUZZ-BUILD-PANIC") {
+			return 0
+		}
+		panic(err)
 	}
+	return 0
 }
 
 func main() {
