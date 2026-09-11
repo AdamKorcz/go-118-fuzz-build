@@ -37,6 +37,8 @@ import (
 	"time"
 )
 
+var ProtoUnmarshal func(data []byte, msg any) error
+
 type F struct {
 	s *Source
 	TempDirs []string
@@ -201,6 +203,11 @@ func (s *Source) FillAndCall(ff any, arg0 reflect.Value) (ok bool) {
 	}
 	args := make([]reflect.Value, method.NumIn())
 	args[0] = arg0
+	if method.NumIn() == 2 && isProtoMessage(method.In(1)) {
+		args[1] = s.fillArg(method.In(1), s.Len())
+		fn.Call(args)
+		return true
+	}
 	var dynamic []int
 	// Fill all fixed-size arguments first, then dynamic-sized fields.
 	for i := 1; i < method.NumIn(); i++ {
@@ -260,10 +267,27 @@ func (s *Source) fillArg(v reflect.Type, max int) reflect.Value {
 		} else {
 			panic(fmt.Sprintf("unsupported type: %T", newElem.Kind))
 		}
+	case reflect.Pointer:
+		if !isProtoMessage(v) {
+			panic(fmt.Sprintf("unsupported type: %T", newElem.Kind))
+		}
+		msg := reflect.New(v.Elem())
+		if err := ProtoUnmarshal(s.getBytes(max), msg.Interface()); err != nil {
+			panic("GO-FUZZ-BUILD-PANIC")
+		}
+		newElem.Set(msg)
 	default:
 		panic(fmt.Sprintf("unsupported type: %T", newElem.Kind))
 	}
 	return newElem
+}
+
+func isProtoMessage(v reflect.Type) bool {
+	if ProtoUnmarshal == nil || v.Kind() != reflect.Pointer {
+		return false
+	}
+	_, ok := v.MethodByName("ProtoReflect")
+	return ok
 }
 
 // For compliance only below
@@ -469,6 +493,8 @@ type FileWalker struct {
 	goRootDir     string
 	allFiles      []string
 	overlayArgs   []string
+	protoTarget   *ProtoTarget
+	fuzzerPkgPath string
 }
 
 func NewFileWalker() *FileWalker {
@@ -490,6 +516,10 @@ func NewFileWalker() *FileWalker {
 	}
 }
 
+func (walker *FileWalker) visibleFuzzerPath() string {
+	return strings.TrimSuffix(strings.TrimSuffix(walker.fuzzerPath, ".go"), "_test") + "_libFuzzer.go"
+}
+
 func (walker *FileWalker) cleanUp() {
 	for oldName, renamedTestFile := range walker.renamedTestFiles {
 		err := os.Rename(renamedTestFile, oldName)
@@ -498,7 +528,7 @@ func (walker *FileWalker) cleanUp() {
 		}
 	}
 	// Remove the visible fuzzer path
-	os.Remove(strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go")
+	os.Remove(walker.visibleFuzzerPath())
 	err := os.RemoveAll(walker.tmpDir)
 	if err != nil {
 		panic(err)
@@ -521,7 +551,7 @@ func (walker *FileWalker) createRewrittenHarness(path string, fset1 *token.FileS
 	if err = originalFuzzerFileCopy.Close(); err != nil {
 		return err
 	}
-	visibleFuzzerPath := strings.TrimSuffix(walker.fuzzerPath, "_test.go") + "_libFuzzer.go"
+	visibleFuzzerPath := walker.visibleFuzzerPath()
 	fff, err := os.Create(visibleFuzzerPath)
 	if err != nil {
 		return err
@@ -773,10 +803,17 @@ func (walker *FileWalker) createCoverageRunner(flagFunc, fuzzerPackageName strin
 		return err
 	}
 	defer f.Close()
-	err = coverageTmpl.Execute(f, &Data{
+	data := &Data{
 		Func:    modifiedFuncName,
 		PkgName: fuzzerPackageName,
-	})
+	}
+	if walker.protoTarget != nil {
+		walker.protoTarget.fillData(data, walker.fuzzerPkgPath, "")
+	}
+	err = coverageTmpl.Execute(f, data)
+	if err != nil {
+		return err
+	}
 	walker.overlayMap.Replace["oss_fuzz_coverage_test.go"] = f.Name()
 	return nil
 }

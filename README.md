@@ -167,6 +167,47 @@ go-118-fuzz-build -o fuzz_archive_file.a -func FuzzMyApi github.com/my/project
 clang -o fuzz_binary fuzz_archive_file.a -fsanitize=fuzzer
 ```
 
+### Structure-aware fuzzing with protobuf messages
+`-proto` builds the fuzzer with a custom libFuzzer mutator that mutates a protobuf message instead of raw bytes, using [go-protobuf-mutator](https://github.com/yandex-cloud/go-protobuf-mutator).
+
+The `f.Fuzz()` callback must take exactly one parameter besides the `testing.T`, and it must be a protoc-generated message:
+
+```go
+package package1
+
+import (
+	"testing"
+
+	pb "github.com/my/project/api"
+)
+
+func FuzzMyApi(f *testing.F) {
+	f.Fuzz(func(t *testing.T, msg *pb.MyMessage) {
+		ApiOne(msg)
+	})
+}
+```
+
+The message type is taken from that callback, so nothing has to be passed on the command line besides the flag itself:
+
+```bash
+git clone https://github.com/my/project
+cd project/package1
+printf "package package1\nimport (\n_ \"github.com/AdamKorcz/go-118-fuzz-build/testing\"\n_ \"github.com/yandex-cloud/go-protobuf-mutator\"\n)\n" > registerfuzzdependency.go
+go mod tidy
+go-118-fuzz-build -proto -o fuzz_archive_file.a -func FuzzMyApi github.com/my/project
+clang -o fuzz_binary fuzz_archive_file.a -fsanitize=fuzzer
+```
+
+Testcases in the corpus are serialized messages, and `-proto_format` chooses their encoding:
+
+- `binary` : the protobuf wire format. Compact corpus files.
+- `text` (default) : Readable corpus files and crash artifacts, at the cost of size.
+
+Both formats work with `-sanitizer coverage` too, where the corpus files are decoded with the same encoding before being handed to the fuzzer.
+
+A testcase that does not decode is skipped, and the mutator starts from an empty message instead, so a corpus of arbitrary files still lets the fuzzer make progress.
+
 ### Using test utils from other `*_test.go` files
 go-118-fuzz-build cannot read any `*_test.go` files. These will need to be renamed so they don't end in `_test.go`.
 In this example our fuzzer uses utilities from `utils_test.go`, so we rename that file to `utils_test_fuzz.go`.
